@@ -52,11 +52,4 @@ defmodule JustpushitApi.ChannelController do
     send_resp(conn, :no_content, "")
   end
 
-  def feed(conn, _params) do
-    # we feed the database with
-    # new channels if possible
-    JustpushitApi.Utils.Feeder.feed!
-    render(conn, "feed.json")
-  end
-
 end
