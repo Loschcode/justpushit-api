@@ -75,7 +75,7 @@ def hello_world_plug(conn, _opts) do
 end
 ```
 
-A module plug provides an `init/1` function to initialize options and implement the `call/2` function, receiving the connection and the initialized options, and returning the connection:
+A module plug implements an `init/1` function to initialize the options and a `call/2` function which receives the connection and initialized options and returns the connection:
 
 ```elixir
 defmodule MyPlug do
@@ -157,7 +157,7 @@ and then update `lib/my_app.ex` as follows:
 defmodule MyApp do
   use Application
 
-  # See http://elixir-lang.org/docs/stable/elixir/Application.html
+  # See https://hexdocs.pm/elixir/Application.html
   # for more information on OTP Applications
   def start(_type, _args) do
     import Supervisor.Spec
@@ -167,7 +167,7 @@ defmodule MyApp do
       Plug.Adapters.Cowboy.child_spec(:http, MyRouter, [], [port: 4001])
     ]
 
-    # See http://elixir-lang.org/docs/stable/elixir/Supervisor.html
+    # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: MyApp.Supervisor]
     Supervisor.start_link(children, opts)
@@ -224,7 +224,27 @@ Modules that can be used after you use `Plug.Router` or `Plug.Builder` to help d
   * `Plug.Debugger` - shows a helpful debugging page every time there is a failure in a request;
   * `Plug.ErrorHandler` - allows developers to customize error pages in case of crashes instead of sending a blank one;
 
+## Contributing
+
+We welcome everyone to contribute to Plug and help us tackle existing issues!
+
+Use the [issue tracker][issues] for bug reports or feature requests. You may also start a discussion on the [mailing list][ML] or the **[#elixir-lang][IRC]** channel on [Freenode][freenode] IRC. Open a [pull request][pulls] when you are ready to contribute.
+
+When submitting a pull request you should not update the `CHANGELOG.md`.
+
+If you are planning to contribute documentation, [please check our best practices for writing documentation][writing-docs].
+
+Finally, remember all interactions in our official spaces follow our [Code of Conduct][code-of-conduct].
+
 ## License
 
 Plug source code is released under Apache 2 License.
 Check LICENSE file for more information.
+
+  [issues]: https://github.com/elixir-lang/plug/issues
+  [pulls]: https://github.com/elixir-lang/plug/pulls
+  [ML]: https://groups.google.com/group/elixir-lang-core
+  [code-of-conduct]: https://github.com/elixir-lang/elixir/blob/master/CODE_OF_CONDUCT.md
+  [writing-docs]: http://elixir-lang.org/docs/stable/elixir/writing-documentation.html
+  [IRC]: https://webchat.freenode.net/?channels=#elixir-lang
+  [freenode]: http://www.freenode.net

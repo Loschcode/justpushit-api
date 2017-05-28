@@ -40,8 +40,10 @@ defmodule Ecto.Migrator do
   """
   @spec migrated_versions(Ecto.Repo.t, Keyword.t) :: [integer]
   def migrated_versions(repo, opts \\ []) do
-    SchemaMigration.ensure_schema_migrations_table!(repo, opts[:prefix])
-    SchemaMigration.migrated_versions(repo, opts[:prefix])
+    verbose_schema_migration repo, "retrieve migrated versions", fn ->
+      SchemaMigration.ensure_schema_migrations_table!(repo, opts[:prefix])
+      SchemaMigration.migrated_versions(repo, opts[:prefix])
+    end
   end
 
   @doc """
@@ -69,8 +71,10 @@ defmodule Ecto.Migrator do
     run_maybe_in_transaction repo, module, fn ->
       attempt(repo, module, :forward, :up, :up, opts)
         || attempt(repo, module, :forward, :change, :up, opts)
-        || raise Ecto.MigrationError, message: "#{inspect module} does not implement a `up/0` or `change/0` function"
-      SchemaMigration.up(repo, version, opts[:prefix])
+        || raise Ecto.MigrationError, "#{inspect module} does not implement a `up/0` or `change/0` function"
+      verbose_schema_migration repo, "update schema migrations", fn ->
+        SchemaMigration.up(repo, version, opts[:prefix])
+      end
     end
   end
 
@@ -99,8 +103,10 @@ defmodule Ecto.Migrator do
     run_maybe_in_transaction repo, module, fn ->
       attempt(repo, module, :forward, :down, :down, opts)
         || attempt(repo, module, :backward, :change, :down, opts)
-        || raise Ecto.MigrationError, message: "#{inspect module} does not implement a `down/0` or `change/0` function"
-      SchemaMigration.down(repo, version, opts[:prefix])
+        || raise Ecto.MigrationError, "#{inspect module} does not implement a `down/0` or `change/0` function"
+      verbose_schema_migration repo, "update schema migrations", fn ->
+        SchemaMigration.down(repo, version, opts[:prefix])
+      end
     end
   end
 
@@ -149,7 +155,7 @@ defmodule Ecto.Migrator do
       step = opts[:step] ->
         run_step(repo, versions, directory, direction, step, opts)
       true ->
-        raise ArgumentError, message: "expected one of :all, :to, or :step strategies"
+        raise ArgumentError, "expected one of :all, :to, or :step strategies"
     end
   end
 
@@ -252,12 +258,12 @@ defmodule Ecto.Migrator do
   defp ensure_no_duplication([{version, name, _} | t]) do
     if List.keyfind(t, version, 0) do
       raise Ecto.MigrationError,
-        message: "migrations can't be executed, migration version #{version} is duplicated"
+            "migrations can't be executed, migration version #{version} is duplicated"
     end
 
     if List.keyfind(t, name, 1) do
       raise Ecto.MigrationError,
-        message: "migrations can't be executed, migration name #{name} is duplicated"
+            "migrations can't be executed, migration name #{name} is duplicated"
     end
 
     ensure_no_duplication(t)
@@ -265,9 +271,31 @@ defmodule Ecto.Migrator do
 
   defp ensure_no_duplication([]), do: :ok
 
+  defp verbose_schema_migration(repo, reason, fun) do
+    try do
+      fun.()
+    rescue
+      error ->
+        Logger.error "Could not #{reason}. This error typically happens when the " <>
+                     "\"schema_migrations\" table, which Ecto uses for storing migration" <>
+                     "information, is already used by another library or for other purposes.\n\n" <>
+                     "You can fix this by running `mix ecto.drop` in the appropriate `MIX_ENV` " <>
+                     "to drop the existing database and let Ecto start a new one with a proper " <>
+                     "definition of \"schema_migrations\" or by configuring the repository to " <>
+                     "use another source:\n\n" <>
+                     """
+                         config #{inspect repo.config[:otp_app]}, #{inspect repo},
+                           migration_source: "some_other_table_for_schema_migrations"
+
+                     The full error is shown below.
+                     """
+        reraise error, System.stacktrace
+    end
+  end
+
   defp raise_no_migration_in_file(file) do
     raise Ecto.MigrationError,
-      message: "file #{Path.relative_to_cwd(file)} does not contain any Ecto.Migration"
+          "file #{Path.relative_to_cwd(file)} does not contain any Ecto.Migration"
   end
 
   defp log(false, _msg), do: :ok

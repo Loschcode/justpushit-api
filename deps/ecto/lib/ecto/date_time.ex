@@ -1,3 +1,4 @@
+# TODO: Remove Ecto.Date|Time types on Ecto v2.2
 import Kernel, except: [to_string: 1]
 
 defmodule Ecto.DateTime.Utils do
@@ -272,7 +273,6 @@ defmodule Ecto.Time do
   def cast(%Ecto.Time{} = t),
     do: {:ok, t}
 
-  # TODO: Remove old cast
   def cast(%{"hour" => hour, "min" => min} = map),
     do: from_parts(to_i(hour), to_i(min), to_i(Map.get(map, "sec", 0)), to_i(Map.get(map, "usec", 0)))
   def cast(%{hour: hour, min: min} = map),
@@ -283,7 +283,6 @@ defmodule Ecto.Time do
   def cast(%{hour: empty, minute: empty}) when empty in ["", nil],
     do: {:ok, nil}
 
-  # TODO: microseconds should not default to 0
   def cast(%{"hour" => hour, "minute" => minute} = map),
     do: from_parts(to_i(hour), to_i(minute), to_i(Map.get(map, "second", 0)), to_i(Map.get(map, "microsecond", 0)))
   def cast(%{hour: hour, minute: minute} = map),
@@ -387,6 +386,8 @@ end
 defmodule Ecto.DateTime do
   import Ecto.DateTime.Utils
 
+  @unix_epoch :calendar.datetime_to_gregorian_seconds {{1970, 1, 1}, {0, 0, 0}}
+
   @doc """
   Compare two datetimes.
 
@@ -405,7 +406,7 @@ defmodule Ecto.DateTime do
   @doc """
   The Ecto primitive type.
   """
-  def type, do: :datetime
+  def type, do: :naive_datetime
 
   @doc """
   Casts the given value to datetime.
@@ -451,7 +452,6 @@ defmodule Ecto.DateTime do
     {:ok, dt}
   end
 
-  # TODO: Remove old cast
   defp do_cast(%{"year" => year, "month" => month, "day" => day, "hour" => hour, "min" => min} = map) do
     from_parts(to_i(year), to_i(month), to_i(day),
                to_i(hour), to_i(min), to_i(Map.get(map, "sec", 0)),
@@ -474,7 +474,6 @@ defmodule Ecto.DateTime do
     {:ok, nil}
   end
 
-  # TODO: microseconds should not default to 0
   defp do_cast(%{"year" => year, "month" => month, "day" => day, "hour" => hour, "minute" => min} = map) do
     from_parts(to_i(year), to_i(month), to_i(day),
                to_i(hour), to_i(min), to_i(Map.get(map, "second", 0)),
@@ -618,6 +617,15 @@ defmodule Ecto.DateTime do
                    hour: hour, min: min, sec: sec}
   end
 
+  def from_unix!(integer, unit) do
+    total = System.convert_time_unit(integer, unit, :microseconds)
+    microsecond = rem(total, 1_000_000)
+    {{year, month, day}, {hour, minute, second}} =
+      :calendar.gregorian_seconds_to_datetime(@unix_epoch + div(total, 1_000_000))
+    %Ecto.DateTime{year: year, month: month, day: day,
+                      hour: hour, min: minute, sec: second, usec: microsecond}
+  end
+
   # Callback invoked by autogenerate fields.
   @doc false
   def autogenerate(precision \\ :sec)
@@ -629,7 +637,7 @@ defmodule Ecto.DateTime do
 
   def autogenerate(:usec) do
     timestamp = {_, _, usec} = :os.timestamp
-    {date, {h, m, s}} =:calendar.now_to_datetime(timestamp)
+    {date, {h, m, s}} = :calendar.now_to_datetime(timestamp)
     erl_load({date, {h, m, s, usec}})
   end
 
@@ -650,5 +658,30 @@ defimpl Inspect, for: [Ecto.DateTime, Ecto.Date, Ecto.Time] do
 
   def inspect(dt, _opts) do
     "#" <> @inspected <> "<" <> @for.to_string(dt) <> ">"
+  end
+end
+
+defimpl Ecto.DataType, for: Ecto.DateTime do
+  def dump(%Ecto.DateTime{year: year, month: month, day: day,
+                          hour: hour, min: min, sec: sec, usec: usec}) do
+    {:ok, {{year, month, day}, {hour, min, sec, usec}}}
+  end
+end
+
+defimpl Ecto.DataType, for: Ecto.Date do
+  def dump(%Ecto.Date{year: year, month: month, day: day}) do
+    {:ok, {year, month, day}}
+  end
+end
+
+defimpl Ecto.DataType, for: Ecto.Time do
+  def dump(%Ecto.Time{hour: hour, min: min, sec: sec, usec: usec}) do
+    {:ok, {hour, min, sec, usec}}
+  end
+end
+
+if Code.ensure_loaded?(Poison) do
+  defimpl Poison.Encoder, for: [Ecto.Date, Ecto.Time, Ecto.DateTime] do
+    def encode(dt, _opts), do: <<?", @for.to_iso8601(dt)::binary, ?">>
   end
 end

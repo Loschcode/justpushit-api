@@ -240,12 +240,12 @@ defmodule JaSerializer.DSL do
     * As "Resource Indentifiers" - A type/id pair, useful to relate to data the client already has.
     * As Included Resources - The full resource is serialized in the same request (also includes Resource Identifiers).
 
-  Channels can be combined with either resource identifiers or fully included resources.
+  Links can be combined with either resource identifiers or fully included resources.
 
   See http://jsonapi.org/format/#document-resource-object-relationships for more
   details on the spec.
 
-  ## Channel based relationships
+  ## Link based relationships
 
   Specify a URI or path which responds with the related resource. For example:
 
@@ -260,7 +260,7 @@ defmodule JaSerializer.DSL do
         end
       end
 
-  Channels can be defined with an atom or string.
+  Links can be defined with an atom or string.
 
   String may be either a relative or absolute path. Path segments beginning
   with a colon are called as functions on the serializer with the struct and

@@ -1,12 +1,12 @@
 defmodule Postgrex.Mixfile do
   use Mix.Project
 
-  @version "0.12.1"
+  @version "0.13.2"
 
   def project do
     [app: :postgrex,
      version: @version,
-     elixir: "~> 1.0",
+     elixir: "~> 1.3.4 or ~> 1.4",
      deps: deps(),
      name: "Postgrex",
      source_url: "https://github.com/elixir-ecto/postgrex",
@@ -17,15 +17,15 @@ defmodule Postgrex.Mixfile do
 
   # Configuration for the OTP application
   def application do
-    [applications: [:logger, :db_connection, :decimal],
+    [applications: [:logger, :db_connection, :decimal, :crypto],
      mod: {Postgrex.App, []},
      env: [type_server_reap_after: 3 * 60_000]]
   end
 
   defp deps do
-    [{:ex_doc, "~> 0.12", only: :dev},
+    [{:ex_doc, "~> 0.14", only: :docs},
      {:decimal, "~> 1.0"},
-     {:db_connection, "~> 1.0-rc.4"},
+     {:db_connection, "~> 1.1"},
      {:connection, "~> 1.0"}]
   end
 

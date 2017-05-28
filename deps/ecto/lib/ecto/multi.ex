@@ -1,68 +1,69 @@
 defmodule Ecto.Multi do
   @moduledoc """
-  Ecto.Multi is a data structure that allows grouping multiple Repo operations
-  together.
+  `Ecto.Multi` is a data structure for grouping multiple Repo operations.
 
-  Ecto.Multi makes it possible to pack operations that should be performed
-  together (in a single database transaction) and gives a way to introspect
-  the queued operations without actually performing them.
-  Each operation is given a name that is unique and will identify its result
-  or will help to identify the place of failure in case it occurs.
+  `Ecto.Multi` makes it possible to pack operations that should be
+  performed in a single database transaction and gives a way to introspect
+  the queued operations without actually performing them. Each operation
+  is given a name that is unique and will identify its result in case of
+  success or failure.
 
   All operations will be executed in the order they were added.
 
   The `Ecto.Multi` structure should be considered opaque. You can use
   `%Ecto.Multi{}` to pattern match the type, but accessing fields or
   directly modifying them is not advised.
-  `Ecto.Multi.to_list/1` returns a canonical representation of the structure
-  that can be used for introspection.
+
+  `Ecto.Multi.to_list/1` returns a canonical representation of the
+  structure that can be used for introspection.
 
   ## Changesets
 
-  If Multi contains operations that accept changesets (like `insert/4`,
-  `update/4` or `delete/4`) they will be checked before starting the transaction.
-  If any changeset has errors, the transaction won't even be started and the error
-  will be immediately returned.
+  If multi contains operations that accept changesets (like `insert/4`,
+  `update/4` or `delete/4`) they will be checked before starting the
+  transaction. If any changeset has errors, the transaction won't even
+  be started and the error will be immediately returned.
 
   ## Run
 
-  Multi allows you to run arbitrary functions as part of your transaction via
-  the `run/3` and `run/5`. Those functions will receive changes so far as the
-  first argument and have to return `{:ok, value}` or `{:error, value}` as
-  their result. Returning an error will abort any further operations and
-  make the whole multi fail.
+  Multi allows you to run arbitrary functions as part of your transaction
+  via the `run/3` and `run/5`. This is very useful when an operation depends
+  on the value of a previous operation. For this reason, the function given
+  as callback to `run/3` and `run/5` will receive all changes performed by
+  the multi so far as a map in the first argument.
+
+  The function given to `run` must return `{:ok, value}` or `{:error, value}`
+  as its result. Returning an error will abort any further operations
+  and make the whole multi fail.
 
   ## Example
 
   Let's look at an example definition and usage. The use case we'll be
   looking into is resetting a password. We need to update the account
-  with proper information, log the request and remove all current sessions.
-  We define a function creating the Multi structure probably in some sort of
-  service layer:
+  with proper information, log the request and remove all current sessions:
 
-      defmodule Service do
+      defmodule PasswordManager do
         alias Ecto.Multi
-        import Ecto
 
-        def password_reset(account, params) do
+        def reset(account, params) do
           Multi.new
           |> Multi.update(:account, Account.password_reset_changeset(account, params))
           |> Multi.insert(:log, Log.password_reset_changeset(account, params))
-          |> Multi.delete_all(:sessions, assoc(account, :sessions))
+          |> Multi.delete_all(:sessions, Ecto.assoc(account, :sessions))
         end
       end
 
   We can later execute it in the integration layer using Repo:
 
-      Repo.transaction(Service.password_reset(account, params))
+      Repo.transaction(PasswordManager.reset(account, params))
 
   By pattern matching on the result we can differentiate different conditions:
 
       case result do
         {:ok, %{account: account, log: log, sessions: sessions}} ->
           # Operation was successful, we can access results (exactly the same
-          # we would get from running corresponding Repo functions)
-          # under keys we used for naming the operations.
+          # we would get from running corresponding Repo functions) under keys
+          # we used for naming the operations.
         {:error, failed_operation, failed_value, changes_so_far} ->
           # One of the operations failed. We can access the operation's failure
           # value (like changeset for operations on changesets) to prepare a
@@ -75,9 +76,9 @@ defmodule Ecto.Multi do
   Since changesets can use in-memory-data, we can use an account that is
   constructed in memory as well (without persisting it to the database):
 
-      test "dry run password_reset" do
+      test "dry run password reset" do
         account = %Account{password: "letmein"}
-        multi = Service.password_reset(account, params)
+        multi = PasswordManager.reset(account, params)
 
         assert [
           {:account, {:update, account_changeset, []}},
@@ -139,7 +140,7 @@ defmodule Ecto.Multi do
   """
   @spec append(t, t) :: t
   def append(lhs, rhs) do
-    do_merge(lhs, rhs, &(&2 ++ &1))
+    merge_structs(lhs, rhs, &(&2 ++ &1))
   end
 
   @doc """
@@ -157,10 +158,10 @@ defmodule Ecto.Multi do
   """
   @spec prepend(t, t) :: t
   def prepend(lhs, rhs) do
-    do_merge(lhs, rhs, &(&1 ++ &2))
+    merge_structs(lhs, rhs, &(&1 ++ &2))
   end
 
-  defp do_merge(%Multi{} = lhs, %Multi{} = rhs, joiner) do
+  defp merge_structs(%Multi{} = lhs, %Multi{} = rhs, joiner) do
     %{names: lhs_names, operations: lhs_ops} = lhs
     %{names: rhs_names, operations: rhs_ops} = rhs
     case MapSet.intersection(lhs_names, rhs_names) |> MapSet.to_list do
@@ -181,29 +182,33 @@ defmodule Ecto.Multi do
   end
 
   @doc """
-  Merges a dynamically created multi
+  Merges a multi returned dynamically by an anonymous function.
 
-  The function should return an Ecto.Multi, and receives changes so far
-  as an argument.
+  This function is useful when the multi to be merged requires information
+  from the original multi. Hence the second argument is an anonymous function
+  that receives the multi changes so far. The anonymous function must return
+  another multi.
+
+  If you would prefer to simply merge two multis together, see `append/2` or
+  `prepend/2`.
 
   Duplicated operations are not allowed.
   """
-  @spec merge(t, merge) :: t
+  @spec merge(t, (t -> {:ok | :error, any})) :: t
   def merge(%Multi{} = multi, merge) when is_function(merge, 1) do
     Map.update!(multi, :operations, &[{:merge, {:merge, merge}} | &1])
   end
 
   @doc """
-  Merges a dynamically created multi
+  Merges a multi returned dynamically by calling `module` and `function` with `args`.
 
   Similar to `merge/2`, but allows to pass module name, function and arguments.
-  The function should return an Ecto.Multi, and receives changes so far
-  as the first argument (prepened to those passed in the call to the function).
+  The function should return an `Ecto.Multi`, and receives changes so far
+  as the first argument (prepended to those passed in the call to the function).
 
   Duplicated operations are not allowed.
   """
-  @spec merge(t, module, function, args) :: t
-    when function: atom, args: [any]
+  @spec merge(t, module, function, args) :: t when function: atom, args: [any]
   def merge(%Multi{} = multi, mod, fun, args)
       when is_atom(mod) and is_atom(fun) and is_list(args) do
     Map.update!(multi, :operations, &[{:merge, {:merge, {mod, fun, args}}} | &1])
@@ -212,7 +217,7 @@ defmodule Ecto.Multi do
   @doc """
   Adds an insert operation to the multi.
 
-  Accepts the same arguments and options as `Ecto.Repo.insert/3` does.
+  Accepts the same arguments and options as `c:Ecto.Repo.insert/2` does.
   """
   @spec insert(t, name, Changeset.t | Ecto.Schema.t, Keyword.t) :: t
   def insert(multi, name, changeset_or_struct, opts \\ [])
@@ -228,7 +233,7 @@ defmodule Ecto.Multi do
   @doc """
   Adds an update operation to the multi.
 
-  Accepts the same arguments and options as `Ecto.Repo.update/2` does.
+  Accepts the same arguments and options as `c:Ecto.Repo.update/2` does.
   """
   @spec update(t, name, Changeset.t, Keyword.t) :: t
   def update(multi, name, %Changeset{} = changeset, opts \\ []) do
@@ -269,26 +274,37 @@ defmodule Ecto.Multi do
   end
 
   @doc """
-  Adds a function to run as part of the multi
+  Causes the multi to fail with the given value.
 
-  The function should return either `{:ok, value}` or `{:error, value}`, and
-  receives changes so far as an argument.
+  Running the multi in a transaction will execute
+  all previous steps until this operation which
+  halt with the given `value`.
   """
-  @spec run(t, name, run) :: t
+  @spec error(t, name, error :: term) :: t
+  def error(multi, name, value) do
+    add_operation(multi, name, {:error, value})
+  end
+
+  @doc """
+  Adds a function to run as part of the multi.
+
+  The function should return either `{:ok, value}` or `{:error, value}`,
+  and receives changes so far as an argument.
+  """
+  @spec run(t, name, (t -> {:ok | :error, any})) :: t
   def run(multi, name, run) when is_function(run, 1) do
     add_operation(multi, name, {:run, run})
   end
 
   @doc """
-  Adds a function to run as part of the multi
+  Adds a function to run as part of the multi.
 
   Similar to `run/3`, but allows to pass module name, function and arguments.
   The function should return either `{:ok, value}` or `{:error, value}`, and
-  will receive changes so far as the first argument (prepened to those passed in
+  will receive changes so far as the first argument (prepended to those passed in
   the call to the function).
   """
-  @spec run(t, name, module, function, args) :: t
-    when function: atom, args: [any]
+  @spec run(t, name, module, function, args) :: t when function: atom, args: [any]
   def run(multi, name, mod, fun, args)
       when is_atom(mod) and is_atom(fun) and is_list(args) do
     add_operation(multi, name, {:run, {mod, fun, args}})
@@ -297,11 +313,11 @@ defmodule Ecto.Multi do
   @doc """
   Adds an insert_all operation to the multi.
 
-  Accepts the same arguments and options as `Ecto.Repo.insert_all/4` does.
+  Accepts the same arguments and options as `c:Ecto.Repo.insert_all/3` does.
   """
   @spec insert_all(t, name, schema_or_source, [entry], Keyword.t) :: t
-    when schema_or_source: binary | {binary | nil, binary} | Ecto.Schema.t,
-         entry: map | Keyword.t
+        when schema_or_source: binary | {binary | nil, binary} | Ecto.Schema.t,
+             entry: map | Keyword.t
   def insert_all(multi, name, schema_or_source, entries, opts \\ []) when is_list(opts) do
     add_operation(multi, name, {:insert_all, schema_or_source, entries, opts})
   end
@@ -309,7 +325,7 @@ defmodule Ecto.Multi do
   @doc """
   Adds an update_all operation to the multi.
 
-  Accepts the same arguments and options as `Ecto.Repo.update_all/4` does.
+  Accepts the same arguments and options as `c:Ecto.Repo.update_all/3` does.
   """
   @spec update_all(t, name, Ecto.Queryable.t, Keyword.t, Keyword.t) :: t
   def update_all(multi, name, queryable, updates, opts \\ []) when is_list(opts) do
@@ -320,7 +336,7 @@ defmodule Ecto.Multi do
   @doc """
   Adds a delete_all operation to the multi.
 
-  Accepts the same arguments and options as `Ecto.Repo.delete_all/4` does.
+  Accepts the same arguments and options as `c:Ecto.Repo.delete_all/2` does.
   """
   @spec delete_all(t, name, Ecto.Queryable.t, Keyword.t) :: t
   def delete_all(multi, name, queryable, opts \\ []) when is_list(opts) do
@@ -339,8 +355,11 @@ defmodule Ecto.Multi do
   end
 
   @doc """
-  Transforms the `Ecto.Multi` into a list of operations to be performed. Inspecting
-  the `Ecto.Multi` struct internals directly is discouraged.
+  Returns the list of operations stored in `multi`.
+
+  Always use this function when you need to access the operations you
+  have defined in `Ecto.Multi`. Inspecting the `Ecto.Multi` struct internals
+  directly is discouraged.
   """
   def to_list(%Multi{operations: operations}) do
     operations
@@ -370,6 +389,7 @@ defmodule Ecto.Multi do
   defp invalid_operation(_operation),
     do: nil
 
+  defp apply_operations({:ok, []}, _names, _repo, _wrap, _return), do: {:ok, %{}}
   defp apply_operations({:ok, operations}, names, repo, wrap, return) do
     wrap.(fn ->
       operations
@@ -400,6 +420,8 @@ defmodule Ecto.Multi do
     do: apply(repo, changeset.action, [changeset, opts])
   defp apply_operation({:run, run}, acc, _apply_args, _repo),
     do: apply_fun(run, acc)
+  defp apply_operation({:error, value}, _acc, _apply_args, _repo),
+    do: {:error, value}
   defp apply_operation({:insert_all, source, entries, opts}, _acc, _apply_args, repo),
     do: {:ok, repo.insert_all(source, entries, opts)}
   defp apply_operation({:update_all, query, updates, opts}, _acc, _apply_args, repo),

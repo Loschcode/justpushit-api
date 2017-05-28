@@ -17,16 +17,12 @@ iex> Postgrex.query!(pid, "INSERT INTO comments (user_id, text) VALUES (10, 'hey
 %Postgrex.Result{command: :insert, columns: nil, rows: nil, num_rows: 1}}
 ```
 
-## Disclaimer
-
-Postgrex is currently on 0.x beta releases. We are heading towards a stable release soon. Please consult the issues tracker for more information and outstanding issues.
-
 ## Features
 
   * Automatic decoding and encoding of Elixir values to and from PostgreSQL's binary format
-  * User defined extensions for encoding and decoding any PostgresSQL type
+  * User defined extensions for encoding and decoding any PostgreSQL type
   * Supports transactions, prepared queries and multiple pools via [DBConnection](https://github.com/elixir-ecto/db_connection)
-  * Supports PostgreSQL 8.4, 9.0, 9.1, 9.2, 9.3, 9.4, and 9.5 (hstore is not supported on 8.4)
+  * Supports PostgreSQL 8.4 and 9.0-9.6 (hstore is not supported on 8.4)
 
 ## Data representation
 
@@ -51,6 +47,9 @@ Postgrex is currently on 0.x beta releases. We are heading towards a stable rele
     hstore          %{"foo" => "bar"}
     oid types       42
     enum            "ok" ***
+    bit             << 1::1, 0::1 >>
+    varbit          << 1::1, 0::1 >>
+    tsvector        [%Postgrex.Lexeme{positions: [{1, :A}], word: "a"}]
 
 \* [Decimal](http://github.com/ericmj/decimal)
 
@@ -66,10 +65,19 @@ Extensions are used to extend Postgrex' built-in type encoding/decoding.
 
 Here is a [JSON extension](https://github.com/elixir-ecto/postgrex/blob/master/lib/postgrex/extensions/json.ex) that supports encoding/decoding Elixir maps to the Postgres' JSON type.
 
-To use the extension pass it to the connection as seen below:
+Extensions can be specified and configured when building custom type modules. For example, if you want to different a JSON encoder/decode, you can define a new type module as below.
 
 ```elixir
-Postgrex.start_link(extensions: [{Postgrex.Extensions.JSON, library: Poison}], ...)
+# Postgrex.Types.define(module_name, extra_extensions, options)
+Postgrex.Types.define(MyApp.PostgrexTypes, [], json: AnotherJSONLib)
+```
+
+`Postgrex.Types.define/3` must be called on its own file, outside of any module and function, as it only needs to be defined once during compilation.
+
+Once a type module is defined, you must specify it on `start_link`:
+
+```elixir
+Postgrex.start_link(types: MyApp.PostgrexTypes)
 ```
 
 ## OID type encoding

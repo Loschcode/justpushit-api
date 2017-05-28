@@ -1,4 +1,4 @@
-defmodule JaSerializer.Builder.Channel do
+defmodule JaSerializer.Builder.Link do
   @moduledoc false
 
   @param_fetcher_regex ~r/:\w+/

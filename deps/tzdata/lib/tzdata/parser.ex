@@ -22,7 +22,7 @@ defmodule Tzdata.Parser do
     split = String.split(head, ~r{\s})
     case hd(split) do
       "Rule" -> [process_rule(head)|process_tz_list(tail)]
-      "Channel" -> [process_link(head)|process_tz_list(tail)]
+      "Link" -> [process_link(head)|process_tz_list(tail)]
       "Zone" -> process_zone([head|tail])
       ______ -> [head|process_tz_list(tail)] # pass through
     end
@@ -49,7 +49,7 @@ defmodule Tzdata.Parser do
   defp process_rule_to(val), do: val |> to_int
 
   def process_link(line) do
-    link_regex = ~r/Channel[\s]+(?<from>[^\s]+)[\s]+(?<to>[^\s]+)/
+    link_regex = ~r/Link[\s]+(?<from>[^\s]+)[\s]+(?<to>[^\s]+)/
     captured = Regex.named_captures(link_regex, line)
     %{record_type: :link, from: captured["from"], to: captured["to"]}
   end

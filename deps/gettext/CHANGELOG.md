@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.13.1
+
+* Fix a bug with Dialyzer specs for the `Gettext.Backend.ngettext_noop/2` callback
+* Parse `msgctxt` entries in PO and POT files so that they don't cause syntax errors, but ignore them in the parsed result
+
+## v0.13.0
+
+* Add the `gettext_noop/1`, `dgettext_noop/2`, `ngettext_noop/3`, and `dngettext_noop/4` macros to Gettext backends; these macros can be used to mark translations for extractions without tranlating the given string
+
+## v0.12.2
+
+* Fix a bug where we failed miserably with a "no process" error when extracting
+  translations without having the `:gettext` compiler run
+* Slightly revisit the indentation of subsequent literal strings in dumped PO(T) files; before, they were dumped one per line, indented one level more than the parenttranslation, while now they're indented at the same level as the parent translation
+
+## v0.12.1
+
+* Ensure the gettext application is started before running mix tasks
+
 ## v0.12.0
 
 * Drop support for Elixir 1.1 and require ~> 1.2

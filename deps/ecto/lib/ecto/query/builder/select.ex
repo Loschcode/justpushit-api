@@ -1,3 +1,5 @@
+import Kernel, except: [apply: 2]
+
 defmodule Ecto.Query.Builder.Select do
   @moduledoc false
 
@@ -22,11 +24,6 @@ defmodule Ecto.Query.Builder.Select do
 
   """
   @spec escape(Macro.t, Keyword.t, Macro.Env.t) :: {Macro.t, {%{}, %{}}}
-  def escape({:^, _, [interpolated]}, _vars, _env) do
-    fields = quote(do: Ecto.Query.Builder.Select.fields!(:select, unquote(interpolated)))
-    {{:{}, [], [:&, [], [0]]}, {%{}, %{0 => {:any, fields}}}}
-  end
-
   def escape(other, vars, env) do
     if take?(other) do
       {{:{}, [], [:&, [], [0]]}, {%{}, %{0 => {:any, other}}}}
@@ -65,21 +62,11 @@ defmodule Ecto.Query.Builder.Select do
   end
 
   # map/struct(var, [:foo, :bar])
-  defp escape({tag, _, [{var, _, context}, fields]}, {params, take}, vars, _env)
+  defp escape({tag, _, [{var, _, context}, fields]}, {params, take}, vars, env)
        when tag in [:map, :struct] and is_atom(var) and is_atom(context) do
-    taken =
-      case fields do
-        {:^, _, [interpolated]} ->
-          quote(do: Ecto.Query.Builder.Select.fields!(unquote(tag), unquote(interpolated)))
-        _ when is_list(fields) ->
-          fields
-        true ->
-          Builder.error! "`#{tag}/2` in `select` expects either a literal or "
-                         "an interpolated list of atom fields"
-      end
-
-    expr = Builder.escape_var(var, vars)
-    take = Map.put(take, Builder.find_var!(var, vars), {tag, taken})
+    taken = escape_fields(fields, tag, env)
+    expr  = Builder.escape_var(var, vars)
+    take  = Map.put(take, Builder.find_var!(var, vars), {tag, taken})
     {expr, {params, take}}
   end
 
@@ -110,6 +97,21 @@ defmodule Ecto.Query.Builder.Select do
     escape(k, params_take, vars, env)
   end
 
+  defp escape_fields({:^, _, [interpolated]}, tag, _env) do
+    quote do
+      Ecto.Query.Builder.Select.fields!(unquote(tag), unquote(interpolated))
+    end
+  end
+  defp escape_fields(expr, tag, env) do
+    case Macro.expand(expr, env) do
+      fields when is_list(fields) ->
+        fields
+      _ ->
+        Builder.error! "`#{tag}/2` in `select` expects either a literal or " <>
+          "an interpolated list of atom fields"
+    end
+  end
+
   @doc """
   Called at runtime to verify a field.
   """
@@ -131,6 +133,15 @@ defmodule Ecto.Query.Builder.Select do
   end
 
   @doc """
+  Called at runtime for interpolated/dynamic selects.
+  """
+  def select!(query, fields, file, line) do
+    take = %{0 => {:any, fields!(:select, fields)}}
+    expr = %Ecto.Query.SelectExpr{expr: {:&, [], [0]}, take: take, file: file, line: line}
+    apply(query, expr)
+  end
+
+  @doc """
   Builds a quoted expression.
 
   The quoted expression should evaluate to a query at runtime.
@@ -138,8 +149,16 @@ defmodule Ecto.Query.Builder.Select do
   runtime work.
   """
   @spec build(Macro.t, [Macro.t], Macro.t, Macro.Env.t) :: Macro.t
+
+  def build(query, _binding, {:^, _, [var]}, env) do
+    quote do
+      Ecto.Query.Builder.Select.select!(unquote(query), unquote(var),
+                                        unquote(env.file), unquote(env.line))
+    end
+  end
+
   def build(query, binding, expr, env) do
-    binding = Builder.escape_binding(binding)
+    {query, binding} = Builder.escape_binding(query, binding)
     {expr, {params, take}} = escape(expr, binding, env)
     params = Builder.escape_params(params)
     take   = {:%{}, [], Map.to_list(take)}
@@ -157,13 +176,13 @@ defmodule Ecto.Query.Builder.Select do
   The callback applied by `build/4` to build the query.
   """
   @spec apply(Ecto.Queryable.t, term) :: Ecto.Query.t
-  def apply(query, select) do
-    query = Ecto.Queryable.to_query(query)
-
-    if query.select do
-      Builder.error! "only one select expression is allowed in query"
-    else
-      %{query | select: select}
-    end
+  def apply(%Ecto.Query{select: nil} = query, expr) do
+    %{query | select: expr}
+  end
+  def apply(%Ecto.Query{}, _expr) do
+    Builder.error! "only one select expression is allowed in query"
+  end
+  def apply(query, expr) do
+    apply(Ecto.Queryable.to_query(query), expr)
   end
 end

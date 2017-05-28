@@ -54,6 +54,23 @@ defmodule Ecto.Integration.JoinsTest do
 
     query = from(p in Post, join: c in assoc(p, :permalink), order_by: p.id, select: {p, c})
     assert [{^p2, ^c1}] = TestRepo.all(query)
+
+    query = from(p in Post, join: c in assoc(p, :permalink), on: c.id == ^c1.id, select: {p, c})
+    assert [{^p2, ^c1}] = TestRepo.all(query)
+  end
+
+  test "joins with queries" do
+    p1 = TestRepo.insert!(%Post{title: "1"})
+    p2 = TestRepo.insert!(%Post{title: "2"})
+    c1 = TestRepo.insert!(%Permalink{url: "1", post_id: p2.id})
+
+    permalink = from c in Permalink, where: c.url == ^"1"
+
+    query = from(p in Post, join: c in ^permalink, on: c.post_id == p.id, select: {p, c})
+    assert [{^p2, ^c1}] = TestRepo.all(query)
+
+    query = from(p in Post, join: c in ^permalink, on: c.id == ^c1.id, order_by: p.title, select: {p, c})
+    assert [{^p1, ^c1}, {^p2, ^c1}] = TestRepo.all(query)
   end
 
   @tag :left_join
@@ -163,7 +180,7 @@ defmodule Ecto.Integration.JoinsTest do
     assert p1.comments == [c1, c2]
     assert p2.comments == [c3]
 
-    # Without on
+    # With on
     query = from(p in Post, left_join: c in assoc(p, :comments),
                             on: p.title == c.text, preload: [comments: c])
     [p1, p2] = TestRepo.all(query)
@@ -220,7 +237,7 @@ defmodule Ecto.Integration.JoinsTest do
     assert p2.users == [u2]
     assert p3.users == []
 
-    # Without on
+    # With on
     query = from(p in Post, left_join: u in assoc(p, :users), on: p.title == u.name,
                             preload: [users: u], order_by: p.id)
     [p1, p2, p3] = TestRepo.all(query)
@@ -438,7 +455,7 @@ defmodule Ecto.Integration.JoinsTest do
     TestRepo.insert!(%PostUserCompositePk{post_id: post.id, user_id: user.id})
 
     query = from(p in Post, join: a in assoc(p, :post_user_composite_pk),
-                 preload: [post_user_composite_pk: a], select: p )
+                 preload: [post_user_composite_pk: a], select: p)
     assert [post] = TestRepo.all(query)
     assert post.post_user_composite_pk
   end

@@ -1,5 +1,33 @@
 # Changelog
 
+## v3.2.3
+
+* Bug fixes
+  * Make `phoenix_html` dependency optional once again
+
+## v3.2.2
+
+* Enhancements
+  * Give `Ecto.InvalidChangesetError` plug_status 422
+
+* Bug fixes
+  * Do not raise for schemaless structs
+
+## v3.2.1
+
+* Bug fixes
+  * Implement proper input_value/4 callback
+
+## v3.2.0
+
+* Enhancements
+  * Depend on Phoenix.HTML ~> 2.9
+
+## v3.1.0
+
+* Enhancements
+  * Depend on Ecto ~> 2.1 and support new `:naive_datetime` and `:utc_datetime` types
+
 ## v3.0.1
 
 * Enhancements

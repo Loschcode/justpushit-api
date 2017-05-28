@@ -1,8 +1,10 @@
+import Kernel, except: [apply: 2]
+
 defmodule Ecto.Query.Builder.Join do
   @moduledoc false
 
   alias Ecto.Query.Builder
-  alias Ecto.Query.JoinExpr
+  alias Ecto.Query.{JoinExpr, QueryExpr}
 
   @doc """
   Escapes a join expression (not including the `on` expression).
@@ -96,10 +98,8 @@ defmodule Ecto.Query.Builder.Join do
     do: {expr, nil}
   def join!({source, module}) when is_binary(source) and is_atom(module),
     do: {source, module}
-  def join!(expr) do
-    raise ArgumentError,
-      "expected join to be a string, atom or {string, atom}, got: `#{inspect expr}`"
-  end
+  def join!(expr),
+    do: Ecto.Queryable.to_query(expr)
 
   @doc """
   Builds a quoted expression.
@@ -111,64 +111,92 @@ defmodule Ecto.Query.Builder.Join do
   @spec build(Macro.t, atom, [Macro.t], Macro.t, Macro.t, Macro.t, Macro.Env.t) ::
               {Macro.t, Keyword.t, non_neg_integer | nil}
   def build(query, qual, binding, expr, on, count_bind, env) do
-    binding = Builder.escape_binding(binding)
-    {join_bind, join_expr, join_assoc, join_params} = escape(expr, binding, env)
+    {query, binding} = Builder.escape_binding(query, binding)
+    {join_bind, join_source, join_assoc, join_params} = escape(expr, binding, env)
     join_params = Builder.escape_params(join_params)
 
     qual = validate_qual(qual)
     validate_bind(join_bind, binding)
 
-    {count_bind, count_setter} =
+    {count_bind, query} =
       if join_bind != :_ and !count_bind do
-        # If count_bind is not an integer, make it a variable.
-        # The variable is the getter/setter storage.
-        {quote(do: count_bind),
-         quote(do: count_bind = Builder.count_binds(query))}
+        # If count_bind is not available,
+        # we need to compute the amount of binds at runtime
+        query =
+          quote do
+            query = Ecto.Queryable.to_query(unquote(query))
+            join_count = Builder.count_binds(query)
+            query
+          end
+        {quote(do: join_count), query}
       else
-        {count_bind, nil}
+        {count_bind, query}
       end
 
     binding = binding ++ [{join_bind, count_bind}]
-    join_on = escape_on(on || true, binding, env)
+
+    next_bind =
+      if is_integer(count_bind) do
+        count_bind + 1
+      else
+        quote(do: unquote(count_bind) + 1)
+      end
+
+    query = build_on(on || true, query, binding, count_bind, qual,
+                     join_source, join_assoc, join_params, env)
+    {query, binding, next_bind}
+  end
+
+  def build_on({:^, _, [var]}, query, _binding, count_bind,
+               join_qual, join_source, join_assoc, join_params, env) do
+    quote do
+      query = unquote(query)
+      Ecto.Query.Builder.Join.join!(query, unquote(var), unquote(count_bind),
+                                    unquote(join_qual), unquote(join_source), unquote(join_assoc),
+                                    unquote(join_params), unquote(env.file), unquote(env.line))
+    end
+  end
+
+  def build_on(on, query, binding, count_bind,
+               join_qual, join_source, join_assoc, join_params, env) do
+    {on_expr, on_params} = Ecto.Query.Builder.Filter.escape(:on, on, count_bind, binding, env)
+    on_params = Builder.escape_params(on_params)
 
     join =
       quote do
-        %JoinExpr{qual: unquote(qual), source: unquote(join_expr),
-                  on: unquote(join_on), assoc: unquote(join_assoc),
-                  file: unquote(env.file), line: unquote(env.line),
-                  params: unquote(join_params)}
+        %JoinExpr{qual: unquote(join_qual), source: unquote(join_source),
+                  assoc: unquote(join_assoc), file: unquote(env.file),
+                  line: unquote(env.line), params: unquote(join_params),
+                  on: %QueryExpr{expr: unquote(on_expr), params: unquote(on_params),
+                                 line: unquote(env.line), file: unquote(env.file)}}
       end
 
-    {count_bind, quoted} =
-      if is_integer(count_bind) do
-        {count_bind + 1,
-         Builder.apply_query(query, __MODULE__, [join], env)}
-      else
-        {quote(do: unquote(count_bind) + 1),
-         quote do
-           query = Ecto.Queryable.to_query(unquote(query))
-           unquote(count_setter)
-           %{query | joins: query.joins ++ [unquote(join)]}
-         end}
-      end
-
-    {quoted, binding, count_bind}
+    Builder.apply_query(query, __MODULE__, [join], env)
   end
 
+  @doc """
+  Applies the join expression to the query.
+  """
+  def apply(%Ecto.Query{joins: joins} = query, expr) do
+    %{query | joins: joins ++ [expr]}
+  end
   def apply(query, expr) do
-    query = Ecto.Queryable.to_query(query)
-    %{query | joins: query.joins ++ [expr]}
+    apply(Ecto.Queryable.to_query(query), expr)
   end
 
-  defp escape_on(on, binding, env) do
-    {on, params} = Builder.escape(on, :boolean, %{}, binding, env)
-    params       = Builder.escape_params(params)
+  @doc """
+  Called at runtime to build a join.
+  """
+  def join!(query, expr, count_bind, join_qual, join_source, join_assoc, join_params, file, line) do
+    {on_expr, on_params, on_file, on_line} =
+      Ecto.Query.Builder.Filter.filter!(:on, query, expr, count_bind, file, line)
 
-    quote do: %Ecto.Query.QueryExpr{
-                expr: unquote(on),
-                params: unquote(params),
-                line: unquote(env.line),
-                file: unquote(env.file)}
+    join = %JoinExpr{qual: join_qual, source: join_source, assoc: join_assoc,
+                     file: file, line: line, params: join_params,
+                     on: %QueryExpr{expr: on_expr, params: on_params,
+                                    line: on_line, file: on_file}}
+
+    apply(query, join)
   end
 
   defp validate_qual(qual) when is_atom(qual) do
@@ -185,7 +213,7 @@ defmodule Ecto.Query.Builder.Join do
     end
   end
 
-  @qualifiers [:inner, :inner_lateral, :left, :left_lateral, :right, :full]
+  @qualifiers [:inner, :inner_lateral, :left, :left_lateral, :right, :full, :cross]
 
   @doc """
   Called at runtime to check dynamic qualifier.

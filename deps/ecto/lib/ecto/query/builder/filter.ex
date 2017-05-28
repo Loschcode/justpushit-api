@@ -1,3 +1,5 @@
+import Kernel, except: [apply: 3]
+
 defmodule Ecto.Query.Builder.Filter do
   @moduledoc false
 
@@ -10,20 +12,20 @@ defmodule Ecto.Query.Builder.Filter do
   or a keyword list of field names and values. In a keyword
   list multiple key value pairs will be joined with "and".
   """
-  @spec escape(:where | :having, Macro.t, Keyword.t, Macro.Env.t) :: {Macro.t, %{}}
-  def escape(_kind, [], _vars, _env) do
+  @spec escape(:where | :having, Macro.t, non_neg_integer, Keyword.t, Macro.Env.t) :: {Macro.t, %{}}
+  def escape(_kind, [], _binding, _vars, _env) do
     {true, %{}}
   end
 
-  def escape(kind, expr, vars, env) when is_list(expr) do
+  def escape(kind, expr, binding, vars, env) when is_list(expr) do
     {parts, params} =
       Enum.map_reduce(expr, %{}, fn
         {field, nil}, _acc ->
           Builder.error! "nil given for #{inspect field}. Comparison with nil is forbidden as it is unsafe. " <>
                          "Instead write a query with is_nil/1, for example: is_nil(s.#{field})"
         {field, value}, acc when is_atom(field) ->
-          {value, params} = Builder.escape(value, {0, field}, acc, vars, env)
-          {{:{}, [], [:==, [], [to_escaped_field(field), value]]}, params}
+          {value, params} = Builder.escape(value, {binding, field}, acc, vars, env)
+          {{:{}, [], [:==, [], [to_escaped_field(binding, field), value]]}, params}
         _, _acc ->
           Builder.error! "expected a keyword list at compile time in #{kind}, " <>
                          "got: `#{Macro.to_string expr}`. If you would like to " <>
@@ -34,7 +36,7 @@ defmodule Ecto.Query.Builder.Filter do
     {expr, params}
   end
 
-  def escape(_kind, expr, vars, env) do
+  def escape(_kind, expr, _binding, vars, env) do
     Builder.escape(expr, :boolean, %{}, vars, env)
   end
 
@@ -45,24 +47,22 @@ defmodule Ecto.Query.Builder.Filter do
   If possible, it does all calculations at compile time to avoid
   runtime work.
   """
-  @spec build(:where | :having, Macro.t, [Macro.t], Macro.t, Macro.Env.t) :: Macro.t
-  def build(kind, query, _binding, {:^, _, [var]}, env) do
-    expr =
-      quote do
-        {expr, params} = Ecto.Query.Builder.Filter.runtime!(unquote(kind), unquote(var))
-        %Ecto.Query.QueryExpr{expr: expr, params: params,
-                              file: unquote(env.file), line: unquote(env.line)}
-      end
-    Builder.apply_query(query, __MODULE__, [kind, expr], env)
+  @spec build(:where | :having, :and | :or, Macro.t, [Macro.t], Macro.t, Macro.Env.t) :: Macro.t
+  def build(kind, op, query, _binding, {:^, _, [var]}, env) do
+    quote do
+      Ecto.Query.Builder.Filter.filter!(unquote(kind), unquote(op), unquote(query),
+                                        unquote(var), 0, unquote(env.file), unquote(env.line))
+    end
   end
 
-  def build(kind, query, binding, expr, env) do
-    binding        = Builder.escape_binding(binding)
-    {expr, params} = escape(kind, expr, binding, env)
-    params         = Builder.escape_params(params)
+  def build(kind, op, query, binding, expr, env) do
+    {query, binding} = Builder.escape_binding(query, binding)
+    {expr, params} = escape(kind, expr, 0, binding, env)
+    params = Builder.escape_params(params)
 
-    expr = quote do: %Ecto.Query.QueryExpr{
+    expr = quote do: %Ecto.Query.BooleanExpr{
                         expr: unquote(expr),
+                        op: unquote(op),
                         params: unquote(params),
                         file: unquote(env.file),
                         line: unquote(env.line)}
@@ -76,53 +76,72 @@ defmodule Ecto.Query.Builder.Filter do
   def apply(query, _, %{expr: true}) do
     query
   end
-
-  def apply(query, :where, expr) do
-    query = Ecto.Queryable.to_query(query)
-    %{query | wheres: query.wheres ++ [expr]}
+  def apply(%Ecto.Query{wheres: wheres} = query, :where, expr) do
+    %{query | wheres: wheres ++ [expr]}
   end
-
-  def apply(query, :having, expr) do
-    query = Ecto.Queryable.to_query(query)
-    %{query | havings: query.havings ++ [expr]}
+  def apply(%Ecto.Query{havings: havings} = query, :having, expr) do
+    %{query | havings: havings ++ [expr]}
+  end
+  def apply(query, kind, expr) do
+    apply(Ecto.Queryable.to_query(query), kind, expr)
   end
 
   @doc """
-  Invoked at runtime for interpolated lists.
+  Builds a filter based on the given arguments.
   """
-  def runtime!(_kind, []) do
-    {true, []}
+  def filter!(_kind, query, %Ecto.Query.DynamicExpr{} = dynamic, _binding, _file, _line) do
+    {expr, _binding, params, file, line} = Ecto.Query.Builder.Dynamic.fully_expand(query, dynamic)
+    {expr, params, file, line}
   end
 
-  def runtime!(kind, kw) when is_list(kw) do
-    {parts, params} = runtime!(kw, 0, [], [], kind, kw)
-    {Enum.reduce(parts, &{:and, [], [&2, &1]}), params}
+  def filter!(_kind, _query, bool, _binding, file, line) when is_boolean(bool) do
+    {bool, [], file, line}
   end
 
-  def runtime!(kind, other) do
-    raise ArgumentError, "expected a keyword list in `#{kind}`, got: `#{inspect other}`"
+  def filter!(kind, _query, kw, binding, file, line) when is_list(kw) do
+    {expr, params} = kw!(kind, kw, binding)
+    {expr, params, file, line}
   end
 
-  defp runtime!([{field, nil}|_], _counter, _exprs, _params, _kind, _original) when is_atom(field) do
+  def filter!(kind, _query, other, _binding, _file, _line) do
+    raise ArgumentError, "expected a keyword list or dynamic expression in `#{kind}`, got: `#{inspect other}`"
+  end
+
+  @doc """
+  Builds the filter and applies it to the given query as boolean operator.
+  """
+  def filter!(kind, op, query, expr, binding, file, line) do
+    {expr, params, file, line} = filter!(kind, query, expr, binding, file, line)
+    boolean = %Ecto.Query.BooleanExpr{expr: expr, params: params, line: line, file: file, op: op}
+    apply(query, kind, boolean)
+  end
+
+  defp kw!(kind, kw, binding) do
+    case kw!(kw, binding, 0, [], [], kind, kw) do
+      {[], params} -> {true, params}
+      {parts, params} -> {Enum.reduce(parts, &{:and, [], [&2, &1]}), params}
+    end
+  end
+
+  defp kw!([{field, nil}|_], _binding, _counter, _exprs, _params, _kind, _original) when is_atom(field) do
     raise ArgumentError, "nil given for #{inspect field}. Comparison with nil is forbidden as it is unsafe. " <>
                          "Instead write a query with is_nil/1, for example: is_nil(s.#{field})"
   end
-
-  defp runtime!([{field, value}|t], counter, exprs, params, kind, original) when is_atom(field) do
-    runtime!(t, counter + 1,
-             [{:==, [], [to_field(field), {:^, [], [counter]}]}|exprs],
-             [{value, {0, field}}|params],
-             kind, original)
+  defp kw!([{field, value}|t], binding, counter, exprs, params, kind, original) when is_atom(field) do
+    kw!(t, binding, counter + 1,
+        [{:==, [], [to_field(binding, field), {:^, [], [counter]}]}|exprs],
+        [{value, {binding, field}}|params],
+        kind, original)
   end
-
-  defp runtime!([], _counter, exprs, params, _kind, _original) do
+  defp kw!([], _binding, _counter, exprs, params, _kind, _original) do
     {Enum.reverse(exprs), Enum.reverse(params)}
   end
-
-  defp runtime!(_, _counter, _exprs, _params, kind, original) do
+  defp kw!(_, _binding, _counter, _exprs, _params, kind, original) do
     raise ArgumentError, "expected a keyword list in `#{kind}`, got: `#{inspect original}`"
   end
 
-  defp to_escaped_field(field), do: Macro.escape to_field(field)
-  defp to_field(field), do: {{:., [], [{:&, [], [0]}, field]}, [], []}
+  defp to_field(binding, field),
+    do: {{:., [], [{:&, [], [binding]}, field]}, [], []}
+  defp to_escaped_field(binding, field),
+    do: {:{}, [], [{:{}, [], [:., [], [{:{}, [], [:&, [], [binding]]}, field]]}, [], []]}
 end

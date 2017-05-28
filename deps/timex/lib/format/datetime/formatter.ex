@@ -2,7 +2,6 @@ defmodule Timex.Format.DateTime.Formatter do
   @moduledoc """
   This module defines the behaviour for custom DateTime formatters.
   """
-  use Behaviour
 
   alias Timex.{Timezone, Translator, Types}
   alias Timex.Translator
@@ -10,15 +9,15 @@ defmodule Timex.Format.DateTime.Formatter do
   alias Timex.Format.DateTime.Formatters.{Default, Strftime, Relative}
   alias Timex.Parse.DateTime.Tokenizers.Directive
 
-  defcallback tokenize(format_string :: String.t)
+  @callback tokenize(format_string :: String.t)
     :: {:ok, [Directive.t]} | {:error, term}
-  defcallback format(date :: Types.calendar_types, format_string :: String.t)
+  @callback format(date :: Types.calendar_types, format_string :: String.t)
     :: {:ok, String.t} | {:error, term}
-  defcallback format!(date :: Types.calendar_types, format_string :: String.t)
+  @callback format!(date :: Types.calendar_types, format_string :: String.t)
     :: String.t | no_return
-  defcallback lformat(date :: Types.calendar_types, format_string :: String.t, locale :: String.t)
+  @callback lformat(date :: Types.calendar_types, format_string :: String.t, locale :: String.t)
     :: {:ok, String.t} | {:error, term}
-  defcallback lformat!(date :: Types.calendar_types, format_string :: String.t, locale :: String.t)
+  @callback lformat!(date :: Types.calendar_types, format_string :: String.t, locale :: String.t)
     :: String.t | no_return
 
   @doc false
@@ -41,6 +40,8 @@ defmodule Timex.Format.DateTime.Formatter do
   @spec lformat!(Types.calendar_types, String.t, String.t, atom | nil) :: String.t | no_return
   def lformat!(date, format_string, locale, formatter \\ Default)
 
+  def lformat!({:error, _} = err, _format_string, _locale, _formatter),
+    do: err
   def lformat!(datetime, format_string, locale, :strftime),
     do: lformat!(datetime, format_string, locale, Strftime)
   def lformat!(datetime, format_string, locale, :relative),
@@ -66,6 +67,9 @@ defmodule Timex.Format.DateTime.Formatter do
   """
   @spec lformat(Types.calendar_types, String.t, String.t, atom | nil) :: {:ok, String.t} | {:error, term}
   def lformat(date, format_string, locale, formatter \\ Default)
+
+  def lformat({:error, _} = err, _format_string, _locale, _formatter),
+    do: err
   def lformat(datetime, format_string, locale, :strftime),
     do: lformat(datetime, format_string, locale, Strftime)
   def lformat(datetime, format_string, locale, :relative),
@@ -192,8 +196,12 @@ defmodule Timex.Format.DateTime.Formatter do
     ms    = format_token(locale, :sec_fractional, date, modifiers, flags, width_spec(-1, nil))
     case token do
       :iso_8601_extended ->
-        tz = format_token(locale, :zoffs_colon, date, modifiers, flags, width_spec(-1, nil))
-        "#{year}-#{month}-#{day}T#{hour}:#{min}:#{sec}#{ms}#{tz}"
+        case format_token(locale, :zoffs_colon, date, modifiers, flags, width_spec(-1, nil)) do
+          "" ->
+            {:error, {:missing_timezone_information, date}}
+          tz ->
+            "#{year}-#{month}-#{day}T#{hour}:#{min}:#{sec}#{ms}#{tz}"
+        end
       :iso_8601_extended_z ->
         "#{year}-#{month}-#{day}T#{hour}:#{min}:#{sec}#{ms}Z"
     end
@@ -214,8 +222,12 @@ defmodule Timex.Format.DateTime.Formatter do
     ms    = format_token(locale, :sec_fractional, date, modifiers, flags, width_spec(-1, nil))
     case token do
       :iso_8601_basic ->
-        tz = format_token(locale, :zoffs, date, modifiers, flags, width_spec(-1, nil))
-        "#{year}#{month}#{day}T#{hour}#{min}#{sec}#{ms}#{tz}"
+        case format_token(locale, :zoffs, date, modifiers, flags, width_spec(-1, nil)) do
+          "" ->
+            {:error, {:missing_timezone_information, date}}
+          tz ->
+            "#{year}#{month}#{day}T#{hour}#{min}#{sec}#{ms}#{tz}"
+        end
       :iso_8601_basic_z ->
         "#{year}#{month}#{day}T#{hour}#{min}#{sec}#{ms}Z"
     end
@@ -237,8 +249,12 @@ defmodule Timex.Format.DateTime.Formatter do
     wday  = format_token(locale, :wdshort, date, modifiers, flags, width_spec(-1, nil))
     case token do
       :rfc_822 ->
-        tz = format_token(locale, :zoffs, date, modifiers, flags, width_spec(-1, nil))
-        "#{wday}, #{day} #{month} #{year} #{hour}:#{min}:#{sec} #{tz}"
+        case format_token(locale, :zoffs, date, modifiers, flags, width_spec(-1, nil)) do
+          "" ->
+            {:error, {:missing_timezone_information, date}}
+          tz ->
+            "#{wday}, #{day} #{month} #{year} #{hour}:#{min}:#{sec} #{tz}"
+        end
       :rfc_822z ->
         "#{wday}, #{day} #{month} #{year} #{hour}:#{min}:#{sec} Z"
     end
@@ -260,8 +276,12 @@ defmodule Timex.Format.DateTime.Formatter do
     wday  = format_token(locale, :wdshort, date, modifiers, flags, width_spec(-1, nil))
     case token do
       :rfc_1123 ->
-        tz = format_token(locale, :zoffs, date, modifiers, flags, width_spec(-1, nil))
-        "#{wday}, #{day} #{month} #{year} #{hour}:#{min}:#{sec} #{tz}"
+        case format_token(locale, :zoffs, date, modifiers, flags, width_spec(-1, nil)) do
+          "" ->
+            {:error, {:missing_timezone_information, date}}
+          tz ->
+            "#{wday}, #{day} #{month} #{year} #{hour}:#{min}:#{sec} #{tz}"
+        end
       :rfc_1123z ->
         "#{wday}, #{day} #{month} #{year} #{hour}:#{min}:#{sec} Z"
     end
@@ -283,8 +303,12 @@ defmodule Timex.Format.DateTime.Formatter do
     ms    = format_token(locale, :sec_fractional, date, modifiers, flags, width_spec(-1, nil))
     case token do
       :rfc_3339 ->
-        tz = format_token(locale, :zoffs_colon, date, modifiers, flags, width_spec(-1, nil))
-        "#{year}-#{month}-#{day}T#{hour}:#{min}:#{sec}#{ms}#{tz}"
+        case format_token(locale, :zoffs_colon, date, modifiers, flags, width_spec(-1, nil)) do
+          "" ->
+            {:error, {:missing_timezone_information, date}}
+          tz ->
+            "#{year}-#{month}-#{day}T#{hour}:#{min}:#{sec}#{ms}#{tz}"
+        end
       :rfc_3339z ->
         "#{year}-#{month}-#{day}T#{hour}:#{min}:#{sec}#{ms}Z"
     end
@@ -451,28 +475,27 @@ defmodule Timex.Format.DateTime.Formatter do
     {_, week} = Timex.iso_week(date)
     pad_numeric(week, flags, width)
   end
-  def format_token(_locale, :week_mon, date, _modifiers, flags, width) do
-    {_, week} = Timex.iso_week(date)
-    pad_numeric(week, flags, width)
+  def format_token(_locale, :week_mon, %{:year => year} = date, _modifiers, flags, width) do
+    {:ok, jan1} = Date.new(year,1,1)
+    Timex.Interval.new(from: jan1, until: Timex.shift(date, days: 1))
+    |> Enum.reduce(0, fn d, acc ->
+      case Timex.weekday(d) do
+        1 -> acc+1
+        _ -> acc
+      end
+    end)
+    |> pad_numeric(flags, width)
   end
   def format_token(_locale, :week_sun, %{:year => year} = date, _modifiers, flags, width) do
-    weeks_in_year = case Timex.iso_week({year, 12, 31}) do
-      {^year, 53} -> 53
-      _           -> 52
-    end
-    ordinal = Timex.day(date)
-    weekday = case Timex.weekday(date) do # shift back one since our week starts with Sunday instead of Monday
-      7 -> 0
-      x -> x
-    end
-    week = div(ordinal - weekday + 10, 7)
-    week = cond do
-      week < 1  -> 52
-      week < 53 -> week
-      week > 52 && weeks_in_year == 52 -> 1
-      true -> 53
-    end
-    pad_numeric(week, flags, width)
+    {:ok, jan1} = Date.new(year,1,1)
+    Timex.Interval.new(from: jan1, until: Timex.shift(date, days: 1))
+    |> Enum.reduce(0, fn d, acc ->
+      case Timex.weekday(d) do
+        7 -> acc+1
+        _ -> acc
+      end
+    end)
+    |> pad_numeric(flags, width)
   end
   def format_token(_locale, :wday_mon, date, _modifiers, flags, width),
     do: pad_numeric(Timex.weekday(date), flags, width)
@@ -515,13 +538,9 @@ defmodule Timex.Format.DateTime.Formatter do
     do: pad_numeric(sec, flags, width)
   def format_token(_locale, :sec, _date, _modifiers, flags, width),
     do: pad_numeric(0, flags, width)
-  def format_token(_locale, :sec_fractional, %{microsecond: {us, precision}}, _modifiers, flags, _width) do
-    case us do
-      0 -> ""
-      _ ->
-        padded = pad_numeric(us, flags, width_spec(6..6))
-        ".#{:erlang.binary_part(padded, {0, precision})}"
-    end
+  def format_token(_locale, :sec_fractional, %{microsecond: {us, precision}}, _modifiers, _flags, _width) when precision > 0 do
+    padded = pad_numeric(us, [padding: :zeroes], width_spec(6..6))
+    ".#{:erlang.binary_part(padded, 0, precision)}"
   end
   def format_token(_locale, :sec_fractional, _date, _modifiers, _flags, _width),
     do: ""
@@ -637,7 +656,7 @@ defmodule Timex.Format.DateTime.Formatter do
         cond do
           min_width == -1 && max_width == nil  -> number_str
           len < min_width && max_width == nil  -> String.duplicate(pad_char(pad_type), min_width - len) <> number_str
-          max_width != nil && len < max_width -> String.duplicate(pad_char(pad_type), max_width - len) <> number_str
+          max_width != nil && len < max_width  -> String.duplicate(pad_char(pad_type), max_width - len) <> number_str
           true                                 -> number_str
         end
     end

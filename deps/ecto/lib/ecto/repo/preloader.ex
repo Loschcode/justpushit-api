@@ -24,7 +24,7 @@ defmodule Ecto.Repo.Preloader do
   defp extract([[h|_]|t2]),   do: [h|extract(t2)]
   defp extract([]),           do: []
 
-  defp unextract(structs, [[nil|_]=h2|t2], fun),  do: [fun.(h2)|unextract(structs, t2, fun)]
+  defp unextract(structs, [[nil|_] = h2|t2], fun),  do: [fun.(h2)|unextract(structs, t2, fun)]
   defp unextract([h1|structs], [[_|t1]|t2], fun), do: [fun.([h1|t1])|unextract(structs, t2, fun)]
   defp unextract([], [], _fun),                   do: []
 
@@ -230,32 +230,40 @@ defmodule Ecto.Repo.Preloader do
     Map.put(struct, field, loaded)
   end
 
-  defp load_through({:through, assoc, [h|t]}, struct) do
+  defp load_through({:through, assoc, throughs}, struct) do
     %{cardinality: cardinality, field: field, owner: owner} = assoc
-    pks     = owner.__schema__(:primary_key)
-    initial = struct |> Map.fetch!(h) |> List.wrap
-    loaded  = Enum.reduce(t, initial, &recur_through(&2, &1, pks, assoc))
+    {loaded, _} = Enum.reduce(throughs, {[struct], owner}, &recur_through/2)
     Map.put(struct, field, maybe_first(loaded, cardinality))
   end
 
   defp maybe_first(list, :one), do: List.first(list)
   defp maybe_first(list, _), do: list
 
-  defp recur_through(structs, field, pks, assoc) do
-    Enum.reduce(structs, {[], %{}}, fn struct, acc ->
-      children = struct |> Map.fetch!(field) |> List.wrap
+  defp recur_through(field, {structs, owner}) do
+    assoc = owner.__schema__(:association, field)
+    case assoc.__struct__.preload_info(assoc) do
+      {:assoc, %{related: related}, _} ->
+        pks = related.__schema__(:primary_key)
 
-      Enum.reduce children, acc, fn child, {fresh, set} ->
-        keys = through_pks(child, pks, assoc)
+        {children, _} =
+          Enum.reduce(structs, {[], %{}}, fn struct, acc ->
+            children = struct |> Map.fetch!(field) |> List.wrap
 
-        case set do
-          %{^keys => true} ->
-            {fresh, set}
-          _ ->
-            {[child|fresh], Map.put(set, keys, true)}
-        end
-      end
-    end) |> elem(0) |> Enum.reverse()
+            Enum.reduce children, acc, fn child, {fresh, set} ->
+              keys = through_pks(child, pks, assoc)
+              case set do
+                %{^keys => true} ->
+                  {fresh, set}
+                _ ->
+                  {[child|fresh], Map.put(set, keys, true)}
+              end
+            end
+          end)
+
+        {Enum.reverse(children), related}
+      {:through, _, through} ->
+        Enum.reduce(through, {structs, owner}, &recur_through/2)
+    end
   end
 
   defp through_pks(map, pks, assoc) do
@@ -264,10 +272,8 @@ defmodule Ecto.Repo.Preloader do
         %{^pk => value} -> value
         _ ->
           raise ArgumentError,
-            "cannot preload through association `#{assoc.field}` on `#{inspect assoc.owner}` " <>
-            "because custom query did not return a map.\n\n" <>
-            "When preloading through associations, the custom query must always return a map " <>
-            "with at least all primary keys, got: `#{inspect map}`"
+            "cannot preload through association `#{assoc.field}` on `#{inspect assoc.owner}`. " <>
+            "Ecto expected a map/struct with the key `#{pk}` but got: #{inspect map}"
       end
     end
   end

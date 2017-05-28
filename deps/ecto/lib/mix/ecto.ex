@@ -27,9 +27,7 @@ defmodule Mix.Ecto do
       repos = Application.get_env(app, :ecto_repos) ->
         repos
 
-      # TODO: Remove function exported check once we depend on 1.3 only
-      not function_exported?(Mix.Project, :deps_paths, 0) or
-          Map.has_key?(Mix.Project.deps_paths, :ecto) ->
+      Map.has_key?(Mix.Project.deps_paths, :ecto) ->
         Mix.shell.error """
         warning: could not find repositories for application #{inspect app}.
 
@@ -97,15 +95,30 @@ defmodule Mix.Ecto do
   end
 
   @doc """
-  Ensures the given repository's migrations path exists on the filesystem.
+  Ensures the given repository's migrations path exists on the file system.
   """
   @spec ensure_migrations_path(Ecto.Repo.t) :: Ecto.Repo.t | no_return
   def ensure_migrations_path(repo) do
     with false <- Mix.Project.umbrella?,
          path = Path.relative_to(migrations_path(repo), Mix.Project.app_path),
          false <- File.dir?(path),
-         do: Mix.raise "Could not find migrations directory #{inspect path} for repo #{inspect repo}"
+         do: raise_missing_migrations(path, repo)
     repo
+  end
+
+  defp raise_missing_migrations(path, repo) do
+    Mix.raise """
+    Could not find migrations directory #{inspect path}
+    for repo #{inspect repo}.
+
+    This may be because you are in a new project and the
+    migration directory has not been created yet. Creating an
+    empty directory at the path above will fix this error.
+
+    If you expected existing migrations to be found, please
+    make sure your repository has been properly configured
+    and the configured path exists.
+    """
   end
 
   @doc """
@@ -156,7 +169,7 @@ defmodule Mix.Ecto do
   def open?(file) do
     editor = System.get_env("ECTO_EDITOR") || ""
     if editor != "" do
-      :os.cmd(to_char_list(editor <> " " <> inspect(file)))
+      :os.cmd(to_charlist(editor <> " " <> inspect(file)))
       true
     else
       false

@@ -101,7 +101,7 @@ defmodule DBConnection do
 
   @doc """
   Checkouts the state from the connection process. Return `{:ok, state}`
-  to allow the checkout or `{:disconnect, exception} to disconnect.
+  to allow the checkout or `{:disconnect, exception, state}` to disconnect.
 
   This callback is called when the control of the state is passed to
   another process. `checkin/1` is called with the new state when control
@@ -117,7 +117,7 @@ defmodule DBConnection do
 
   @doc """
   Checks in the state to the connection process. Return `{:ok, state}`
-  to allow the checkin or `{:disconnect, exception}` to disconnect.
+  to allow the checkin or `{:disconnect, exception, state}` to disconnect.
 
   This callback is called when the control of the state is passed back
   to the connection process. It should reverse any changes made in
@@ -130,7 +130,7 @@ defmodule DBConnection do
 
   @doc """
   Called when the connection has been idle for a period of time. Return
-  `{:ok, state}` to continue or `{:disconnect, exception}` to
+  `{:ok, state}` to continue or `{:disconnect, exception, state}` to
   disconnect.
 
   This callback is called if no callbacks have been called after the
@@ -156,7 +156,7 @@ defmodule DBConnection do
     {:error | :disconnect, Exception.t, new_state :: any}
 
   @doc """
-  Handle commiting a transaction. Return `{:ok, result, state}` on success and
+  Handle committing a transaction. Return `{:ok, result, state}` on success and
   to continue, `{:error, exception, state}` to abort the transaction and
   continue or `{:disconnect, exception, state}` to abort the transaction
   and disconnect.
@@ -214,7 +214,7 @@ defmodule DBConnection do
   Close a query prepared by `handle_prepare/3` with the database. Return
   `{:ok, result, state}` on success and to continue,
   `{:error, exception, state}` to return an error and continue, or
-  `{:disconnect, exception, state}` to return an errior and disconnect.
+  `{:disconnect, exception, state}` to return an error and disconnect.
 
   This callback is called in the client process.
   """
@@ -224,7 +224,7 @@ defmodule DBConnection do
 
   @doc """
   Declare a cursor using a query prepared by `handle_prepare/3`. Return
-  `{:ok, cursor, state}' to start a cursor for a stream and continue,
+  `{:ok, cursor, state}` to start a cursor for a stream and continue,
   `{:error, exception, state}` to return an error and continue or
   `{:disconnect, exception, state}` to return an error and disconnect.
 
@@ -264,7 +264,7 @@ defmodule DBConnection do
   Deallocate a cursor declared by `handle_declare/4' with the database. Return
   `{:ok, result, state}` on success and to continue,
   `{:error, exception, state}` to return an error and continue, or
-  `{:disconnect, exception, state}` to return an errior and disconnect.
+  `{:disconnect, exception, state}` to return an error and disconnect.
 
   This callback is called in the client process.
   """
@@ -702,8 +702,9 @@ defmodule DBConnection do
   end
 
   @doc """
-  Acquire a lock on a connection and run a series of requests on it. The
-  result of the fun is return inside an `:ok` tuple: `{:ok, result}`.
+  Acquire a lock on a connection and run a series of requests on it.
+
+  The return value of this function is the return value of `fun`.
 
   To use the locked connection call the request with the connection
   reference passed as the single argument to the `fun`. If the
@@ -746,7 +747,7 @@ defmodule DBConnection do
   @doc """
   Acquire a lock on a connection and run a series of requests inside a
   transaction. The result of the transaction fun is return inside an `:ok`
-  tuple: `{:ok result}`.
+  tuple: `{:ok, result}`.
 
   To use the locked connection call the request with the connection
   reference passed as the single argument to the `fun`. If the

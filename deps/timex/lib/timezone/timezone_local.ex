@@ -131,8 +131,8 @@ defmodule Timex.Timezone.Local do
       # Windows 7/Vista
       # On some systems the string value might be padded with excessive \0 bytes, trim them
       time_zone_name
+      |> Enum.take_while(fn ?\0 -> false; _ -> true end)
       |> IO.iodata_to_binary
-      |> String.strip(?\0)
       |> Utils.to_olson
     else
      # Windows 2000 or XP
@@ -236,11 +236,11 @@ defmodule Timex.Timezone.Local do
 
   @spec get_real_path(String.t) :: String.t
   defp get_real_path(path) do
-    case path |> String.to_char_list |> :file.read_link_info do
+    case path |> String.to_charlist |> :file.read_link_info do
       {:ok, {:file_info, _, :regular, _, _, _, _, _, _, _, _, _, _, _}} ->
         path
       {:ok, {:file_info, _, :symlink, _, _, _, _, _, _, _, _, _, _, _}} ->
-        {:ok, sym} = path |> String.to_char_list |> :file.read_link
+        {:ok, sym} = path |> String.to_charlist |> :file.read_link
         case sym |> :filename.pathtype do
           :absolute ->
             sym |> IO.iodata_to_binary

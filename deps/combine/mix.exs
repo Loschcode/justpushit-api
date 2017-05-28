@@ -3,13 +3,13 @@ defmodule Combine.Mixfile do
 
   def project do
     [app: :combine,
-     version: "0.9.3",
+     version: "0.9.6",
      elixir: "~> 1.0",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      description: "A parser combinator library for Elixir projects.",
-     package: package,
-     deps: deps,
+     package: package(),
+     deps: deps(),
      docs: [source_url: "https://github.com/bitwalker/combine/"]]
   end
 

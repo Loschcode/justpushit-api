@@ -88,7 +88,7 @@ defmodule JOSE do
   defdelegate decode(binary), to: :jose
 
   @doc """
-  Decode a term to JSON using the module returned by `json_module/0`.
+  Encode a term to JSON using the module returned by `json_module/0`.
   """
   defdelegate encode(term), to: :jose
 
@@ -102,6 +102,7 @@ defmodule JOSE do
 
   Currently supported JSON modules (first found is used as default):
 
+    * [`ojson`](https://github.com/potatosalad/erlang-ojson)
     * [`Poison`](https://github.com/devinus/poison)
     * [`jiffy`](https://github.com/davisp/jiffy)
     * [`jsone`](https://github.com/sile/jsone)

@@ -1,5 +1,36 @@
 # Changelog
 
+## v.1.3.0
+
+* Enhancements
+  * Allows configuration via app config (see [README.md](README.md), thanks
+    @TokiTori).
+
+## v.1.2.1
+
+* Fixes
+  * Match for exact origin only (thanks @somlor and @JordanAdams).
+  * Add Vary to response header (thanks @linjunpop).
+
+## v.1.2.0
+
+* Fixes
+  * Remove cowboy dependency. Plug should be server-agnostic and this plug does
+    not need cowboy. Thanks to @hauleth and @ewitchin for making me aware.
+
+As I changed dependency this is a minor release. I don't anticipate any
+regressions tho.
+
+## v1.1.4
+
+* Fixes
+  * Add method parens to suppress Elixir 1.4.0 warnings (thanks @seivan).
+
+## v1.1.3
+
+* Enhancements
+  * Support regex for `origin` (thanks @somlor)
+
 ## v1.1.2
 
 * Enhancements

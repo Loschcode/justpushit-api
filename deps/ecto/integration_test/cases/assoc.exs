@@ -71,6 +71,10 @@ defmodule Ecto.Integration.AssocTest do
 
     query = Ecto.assoc([p1, p2], :comments_authors) |> order_by([a], a.name)
     assert [^u2, ^u1] = TestRepo.all(query)
+
+    # Dynamic through
+    Ecto.assoc([p1, p2], [:comments, :author]) |> order_by([a], a.name)
+    assert [^u2, ^u1] = TestRepo.all(query)
   end
 
   test "has_many through-through assoc leading" do
@@ -90,6 +94,10 @@ defmodule Ecto.Integration.AssocTest do
 
     query = Ecto.assoc([p1, p2], :comments_authors_permalinks) |> order_by([p], p.url)
     assert [^pl2, ^pl1] = TestRepo.all(query)
+
+    # Dynamic through
+    query = Ecto.assoc([p1, p2], [:comments, :author, :permalink]) |> order_by([p], p.url)
+    assert [^pl2, ^pl1] = TestRepo.all(query)
   end
 
   test "has_many through-through assoc trailing" do
@@ -100,6 +108,10 @@ defmodule Ecto.Integration.AssocTest do
     %Comment{} = TestRepo.insert!(%Comment{post_id: p1.id, author_id: u1.id})
 
     query = Ecto.assoc([pl1], :post_comments_authors)
+    assert [^u1] = TestRepo.all(query)
+
+    # Dynamic through
+    query = Ecto.assoc([pl1], [:post, :comments, :author])
     assert [^u1] = TestRepo.all(query)
   end
 
@@ -388,23 +400,22 @@ defmodule Ecto.Integration.AssocTest do
     assert up1.updated_at
   end
 
+  test "many_to_many changeset assoc with self-referential binary_id" do
+    assoc_custom = TestRepo.insert!(%Custom{})
+    custom = TestRepo.insert!(%Custom{customs: [assoc_custom]})
 
-  test "many_to_many changeset assoc with binary_id and uuid" do
-    custom = TestRepo.insert!(%Custom{})
-    post   = TestRepo.insert!(%Post{uuid: Ecto.UUID.generate(), customs: [custom]})
+    custom = Custom |> TestRepo.get!(custom.bid) |> TestRepo.preload(:customs)
+    assert [_] = custom.customs
 
-    post = Post |> TestRepo.get!(post.id) |> TestRepo.preload(:customs)
-    assert [_] = post.customs
-
-    post =
-      post
+    custom =
+      custom
       |> Ecto.Changeset.change(%{})
       |> Ecto.Changeset.put_assoc(:customs, [])
       |> TestRepo.update!
-    assert [] = post.customs
+    assert [] = custom.customs
 
-    post = Post |> TestRepo.get!(post.id) |> TestRepo.preload(:customs)
-    assert [] = post.customs
+    custom = Custom |> TestRepo.get!(custom.bid) |> TestRepo.preload(:customs)
+    assert [] = custom.customs
   end
 
   @tag :unique_constraint

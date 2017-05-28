@@ -1,6 +1,18 @@
 defmodule Timex do
   @moduledoc File.read!("README.md")
 
+  use Application
+
+  def start(_type, _args) do
+    apps = Enum.map(Application.started_applications(), &elem(&1, 0))
+    cond do
+      :tzdata in apps ->
+        Supervisor.start_link([], strategy: :one_for_one, name: Timex.Supervisor)
+      :else ->
+        {:error, ":tzdata application not started! Ensure :timex is in your applications list!"}
+    end
+  end
+
   defmacro __using__(_) do
     quote do
       alias Timex.AmbiguousDateTime
@@ -19,8 +31,6 @@ defmodule Timex do
 
   use Timex.Constants
   import Timex.Macros
-
-  @epoch_seconds :calendar.datetime_to_gregorian_seconds({{1970,1,1},{0,0,0}})
 
   @doc """
   Returns a Date representing the current day in UTC
@@ -452,8 +462,8 @@ defmodule Timex do
 
   ## Examples
 
-  iex> #{__MODULE__}.century
-  21
+      iex> #{__MODULE__}.century
+      21
 
   """
   @spec century() :: non_neg_integer
@@ -464,12 +474,12 @@ defmodule Timex do
 
   ## Examples
 
-  iex> Timex.today |> #{__MODULE__}.century
-  21
-  iex> Timex.now |> #{__MODULE__}.century
-  21
-  iex> #{__MODULE__}.century(2016)
-  21
+      iex> Timex.today |> #{__MODULE__}.century
+      21
+      iex> Timex.now |> #{__MODULE__}.century
+      21
+      iex> #{__MODULE__}.century(2016)
+      21
 
   """
   @spec century(Types.year | Types.valid_datetime) :: non_neg_integer
@@ -608,11 +618,22 @@ defmodule Timex do
       do
       {_, _, jan4weekday} = iso_triplet({year, 1, 4})
       offset = jan4weekday + 3
-      ordinal_date = ((week * 7) + weekday) - offset
-      {year, month, day} = Helpers.iso_day_to_date_tuple(year, ordinal_date)
+      ordinal_day = ((week * 7) + weekday) - offset
+      {year, iso_day} = case {year, ordinal_day} do
+        {year, ordinal_day} when ordinal_day < 1 and is_leap_year(year - 1) ->
+          {year - 1, ordinal_day + 366}
+        {year, ordinal_day} when ordinal_day < 1 ->
+          {year - 1, ordinal_day + 365}
+        {year, ordinal_day} when ordinal_day > 366 and is_leap_year(year) ->
+          {year + 1, ordinal_day - 366}
+        {year, ordinal_day} when ordinal_day > 365 and not is_leap_year(year) ->
+          {year + 1, ordinal_day - 365}
+        _ -> {year, ordinal_day}
+      end
+      {year, month, day} = Helpers.iso_day_to_date_tuple(year, iso_day)
       %Date{year: year, month: month, day: day}
   end
-  def from_iso_triplet(_, _, _), do: {:error, {:from_iso_triplet, :invalid_triplet}}
+  def from_iso_triplet({_, _, _}), do: {:error, {:from_iso_triplet, :invalid_triplet}}
 
   @doc """
   Returns a list of all valid timezone names in the Olson database
@@ -803,7 +824,7 @@ defmodule Timex do
   - :timestamp
 
   and the dates will be compared with the cooresponding accuracy.
-  The default granularity is :seconds.
+  The default granularity is :microseconds.
 
   ## Examples
 
@@ -848,7 +869,7 @@ defmodule Timex do
   and the result will be an integer value of those units or a Duration.
   """
   @spec diff(Comparable.comparable, Comparable.comparable, Comparable.granularity) ::
-    Duration.t | non_neg_integer | {:error, term}
+    Duration.t | integer | {:error, term}
   defdelegate diff(a, b, granularity), to: Timex.Comparable
 
   @doc """
@@ -943,8 +964,8 @@ defmodule Timex do
     abbr_cased = month_name |> String.slice(0..2)
     abbr_lower = lower |> String.slice(0..2)
     symbol     = abbr_lower |> String.to_atom
-    full_chars = month_name |> String.to_char_list
-    abbr_chars = abbr_cased |> String.to_char_list
+    full_chars = month_name |> String.to_charlist
+    abbr_chars = abbr_cased |> String.to_charlist
 
     month_quoted = quote do
       def month_to_num(unquote(month_name)), do: unquote(month_num)
@@ -999,8 +1020,8 @@ defmodule Timex do
 
   ## Examples
 
-  iex> Timex.epoch |> #{__MODULE__}.weekday
-  4 # (i.e. Thursday)
+      iex> Timex.epoch |> #{__MODULE__}.weekday
+      4 # (i.e. Thursday)
 
   """
   @spec weekday(Types.valid_datetime) :: Types.weekday | {:error, term}
@@ -1011,8 +1032,8 @@ defmodule Timex do
 
   ## Examples
 
-  iex> Timex.day(~D[2015-06-26])
-  177
+      iex> Timex.day(~D[2015-06-26])
+      177
   """
   @spec day(Types.valid_datetime) :: Types.daynum | {:error, term}
   defdelegate day(datetime), to: Timex.Protocol
@@ -1068,9 +1089,9 @@ defmodule Timex do
   @doc """
   Given a date returns a date at the beginning of the month.
 
-    iex> date = Timex.to_datetime({{2015, 6, 15}, {12,30,0}}, "Europe/Paris")
-    iex> Timex.beginning_of_month(date)
-    Timex.to_datetime({{2015, 6, 1}, {0, 0, 0}}, "Europe/Paris")
+      iex> date = Timex.to_datetime({{2015, 6, 15}, {12,30,0}}, "Europe/Paris")
+      iex> Timex.beginning_of_month(date)
+      Timex.to_datetime({{2015, 6, 1}, {0, 0, 0}}, "Europe/Paris")
 
   """
   @spec beginning_of_month(Types.valid_datetime) :: Types.valid_datetime | {:error, term}
@@ -1088,9 +1109,9 @@ defmodule Timex do
   @doc """
   Given a date returns a date at the end of the month.
 
-    iex> date = ~N[2015-06-15T12:30:00Z]
-    iex> Timex.end_of_month(date)
-    ~N[2015-06-30T23:59:59.999999Z]
+      iex> date = ~N[2015-06-15T12:30:00Z]
+      iex> Timex.end_of_month(date)
+      ~N[2015-06-30T23:59:59.999999Z]
 
   """
   @spec end_of_month(Types.valid_datetime) :: Types.valid_datetime | {:error, term}
@@ -1133,9 +1154,9 @@ defmodule Timex do
   @doc """
   Given a date returns a date at the beginning of the quarter.
 
-    iex> date = Timex.to_datetime({{2015, 6, 15}, {12,30,0}}, "America/Chicago")
-    iex> Timex.beginning_of_quarter(date)
-    Timex.to_datetime({{2015, 4, 1}, {0, 0, 0}}, "America/Chicago")
+      iex> date = Timex.to_datetime({{2015, 6, 15}, {12,30,0}}, "America/Chicago")
+      iex> Timex.beginning_of_quarter(date)
+      Timex.to_datetime({{2015, 4, 1}, {0, 0, 0}}, "America/Chicago")
 
   """
   @spec beginning_of_quarter(Types.valid_datetime) :: Types.valid_datetime | {:error, term}
@@ -1144,12 +1165,12 @@ defmodule Timex do
   @doc """
   Given a date or a year and month returns a date at the end of the quarter.
 
-    iex> date = ~N[2015-06-15T12:30:00]
-    ...> Timex.end_of_quarter(date)
-    ~N[2015-06-30T23:59:59.999999]
+      iex> date = ~N[2015-06-15T12:30:00]
+      ...> Timex.end_of_quarter(date)
+      ~N[2015-06-30T23:59:59.999999]
 
-    iex> Timex.end_of_quarter(2015, 4)
-    ~D[2015-06-30]
+      iex> Timex.end_of_quarter(2015, 4)
+      ~D[2015-06-30]
 
   """
   @spec end_of_quarter(Types.valid_datetime) :: Types.valid_datetime | {:error, term}
@@ -1354,7 +1375,7 @@ defmodule Timex do
   Same as `shift(date, Duration.from_minutes(5), :duration)`.
   """
   @spec add(Convertable.t, Duration.t) ::
-    Date.t | NaiveDateTime.t | DateTime.t | {:error, term}
+    Types.valid_datetime | AmbiguousDateTime.t | {:error, term}
   def add(date, %Duration{megaseconds: mega, seconds: sec, microseconds: micro}),
     do: shift(date, [seconds: (mega * @million) + sec, microseconds: micro])
 
@@ -1362,7 +1383,8 @@ defmodule Timex do
   Subtract time from a date using a Duration
   Same as `shift(date, Duration.from_minutes(5) |> Duration.invert, :timestamp)`.
   """
-  @spec subtract(Convertable.t, Types.timestamp) :: DateTime.t | {:error, term}
+  @spec subtract(Convertable.t, Types.timestamp) ::
+    Types.valid_datetime | AmbiguousDateTime.t | {:error, term}
   def subtract(date, %Duration{megaseconds: mega, seconds: sec, microseconds: micro}),
     do: shift(date, [seconds: (-mega * @million) - sec, microseconds: -micro])
 
@@ -1414,7 +1436,8 @@ defmodule Timex do
     months: integer,
     years: integer
   ]
-  @spec shift(Types.valid_datetime, shift_options) :: Types.valid_datetime | {:error, term}
+  @spec shift(Types.valid_datetime, shift_options) ::
+    Types.valid_datetime | AmbiguousDateTime.t | {:error, term}
   defdelegate shift(date, options), to: Timex.Protocol
 
   @doc """

@@ -6,5 +6,5 @@
                         'Elixir.Combine.Parsers.Binary',
                         'Elixir.Combine.Parsers.Text']},
               {registered,[]},
-              {vsn,"0.9.3"},
+              {vsn,"0.9.6"},
               {applications,[kernel,stdlib,elixir]}]}.

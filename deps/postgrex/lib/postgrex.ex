@@ -34,24 +34,19 @@ defmodule Postgrex do
 
     * `:hostname` - Server hostname (default: PGHOST env variable, then localhost);
     * `:port` - Server port (default: PGPORT env variable, then 5432);
-    * `:database` - Database (required);
+    * `:database` - Database (default: PGDATABASE env variable; otherwise required);
     * `:username` - Username (default: PGUSER env variable, then USER env var);
-    * `:password` - User password (default PGPASSWORD);
+    * `:password` - User password (default: PGPASSWORD env variable);
     * `:parameters` - Keyword list of connection parameters;
-    * `:timeout` - Connect timeout in milliseconds (default: `#{@timeout}`);
+    * `:timeout` - Socket receive timeout when idle in milliseconds (default:
+    `#{@timeout}`);
+    * `:connect_timeout` - Socket connect timeout in milliseconds (defaults to
+    `:timeout` value);
+    * `:handshake_timeout` - Connection handshake timeout in milliseconds
+    (defaults to `:timeout` value);
     * `:ssl` - Set to `true` if ssl should be used (default: `false`);
     * `:ssl_opts` - A list of ssl options, see ssl docs;
     * `:socket_options` - Options to be given to the underlying socket;
-    * `:extensions` - A list of `{module, opts}` pairs where `module` is
-    implementing the `Postgrex.Extension` behaviour and `opts` are the
-    extension options;
-    * `:decode_binary` - Either `:copy` to copy binary values when decoding with
-    default extensions that return binaries or `:reference` to use a reference
-    counted binary of the binary received from the socket. Referencing a
-    potentially larger binary can be more efficient if the binary value is going
-    to be garbaged collected soon because a copy is avoided. However the larger
-    binary can not be garbage collected until all references are garbage
-    collected (defaults to `:copy`);
     * `:prepare` - How to prepare queries, either `:named` to use named queries
     or `:unnamed` to force unnamed queries (default: `:named`);
     * `:transactions` - Set to `:strict` to error on unexpected transaction
@@ -59,15 +54,36 @@ defmodule Postgrex do
     * `:pool` - The pool module to use, see `DBConnection` for pool dependent
     options, this option must be included with all requests contacting the pool
     if not `DBConnection.Connection` (default: `DBConnection.Connection`);
-    * `:null` - The atom to use as a stand in for postgres' `NULL` in encoding
-    and decoding (default: `nil`);
+    * `:types` - The types module to use, see `Postgrex.TypeModule`, this
+    option is only required when using custom encoding or decoding (default:
+    `Postgrex.DefaultTypes`);
 
   `Postgrex` uses the `DBConnection` framework and supports all `DBConnection`
-  options. See `DBConnection` for more information.
+  options like `:idle`, `:after_connect` etc.
+  See `DBConnection.start_link/2` for more information.
+
+  ## Examples
+
+      iex> {:ok, pid} = Postgrex.start_link(database: "postgres")
+      {:ok, #PID<0.69.0>}
+
+  Run a query after connection has been established:
+
+      iex> {:ok, pid} = Postgrex.start_link(after_connect: &Postgrex.query!(&1, "SET TIME ZONE 'UTC';", []))
+      {:ok, #PID<0.69.0>}
+
+  ## PgBouncer
+
+  When using PgBouncer with transaction or statement pooling named prepared
+  queries can not be used because the bouncer may route requests from
+  the same postgrex connection to different PostgreSQL backend processes
+  and discards named queries after the transactions closes.
+  To force unnamed prepared queries set the `:prepare` option to `:unnamed`.
+
   """
   @spec start_link(Keyword.t) :: {:ok, pid} | {:error, Postgrex.Error.t | term}
   def start_link(opts) do
-    opts = [types: true] ++ Postgrex.Utils.default_opts(opts)
+    opts = Postgrex.Utils.default_opts(opts)
     DBConnection.start_link(Postgrex.Protocol, opts)
   end
 
@@ -93,13 +109,8 @@ defmodule Postgrex do
     decoding, (default: `fn x -> x end`);
     * `:pool` - The pool module to use, must match that set on
     `start_link/1`, see `DBConnection`
-    * `:null` - The atom to use as a stand in for postgres' `NULL` in encoding
-    and decoding;
     * `:mode` - set to `:savepoint` to use a savepoint to rollback to before the
     query on error, otherwise set to `:transaction` (default: `:transaction`);
-    * `:copy_data` - Whether to add copy data as a final parameter for use
-    with `COPY .. FROM STDIN` queries, if the query is not copying to the
-    database the data is sent but silently discarded (default: `false`);
 
   ## Examples
 
@@ -112,8 +123,6 @@ defmodule Postgrex do
       Postgrex.query(conn, "SELECT id FROM posts WHERE title like $1", ["%my%"])
 
       Postgrex.query(conn, "COPY posts TO STDOUT", [])
-
-      Postgrex.query(conn, "COPY ints FROM STDIN", ["1\\n2\\n"], [copy_data: true])
   """
   @spec query(conn, iodata, list, Keyword.t) :: {:ok, Postgrex.Result.t} | {:error, Postgrex.Error.t}
   def query(conn, statement, params, opts \\ []) do
@@ -166,13 +175,8 @@ defmodule Postgrex do
     * `:timeout` - Prepare request timeout (default: `#{@timeout}`);
     * `:pool` - The pool module to use, must match that set on
     `start_link/1`, see `DBConnection`
-    * `:null` - The atom to use as a stand in for postgres' `NULL` in encoding
-    and decoding;
     * `:mode` - set to `:savepoint` to use a savepoint to rollback to before the
     prepare on error, otherwise set to `:transaction` (default: `:transaction`);
-    * `:copy_data` - Whether to add copy data as the final parameter for use
-    with `COPY .. FROM STDIN` queries, if the query is not copying to the
-    database then the data is sent but ignored (default: `false`);
 
   ## Examples
 
@@ -392,12 +396,12 @@ defmodule Postgrex do
   """
   @spec child_spec(Keyword.t) :: Supervisor.Spec.spec
   def child_spec(opts) do
-    opts = [types: true] ++ Postgrex.Utils.default_opts(opts)
+    opts = Postgrex.Utils.default_opts(opts)
     DBConnection.child_spec(Postgrex.Protocol, opts)
   end
 
   @doc """
-  Returns a stream for a prepared query on a connection.
+  Returns a stream for a query on a connection.
 
   Stream consumes memory in chunks of at most `max_rows` rows (see Options).
   This is useful for processing _large_ datasets.
@@ -409,10 +413,8 @@ defmodule Postgrex do
   queries or streams can be interspersed until the copy has finished. Otherwise
   it is possible to intersperse enumerable streams and queries.
 
-  When used as a `Collectable` the query must have been prepared with
-  `copy_data: true`, otherwise it will raise. Instead of using an extra
-  parameter for the copy data, the data from the enumerable is copied to the
-  database. No other queries or streams can be interspersed until the copy has
+  When used as a `Collectable` the values are passed as copy data with the
+  query. No other queries or streams can be interspersed until the copy has
   finished. If the query is not copying to the database the copy data will still
   be sent but is silently discarded.
 
@@ -434,16 +436,18 @@ defmodule Postgrex do
       end)
 
       Postgrex.transaction(pid, fn(conn) ->
-        query = Postgrex.prepare!(conn, "", "COPY posts FROM STDIN", [copy_data: true])
-        stream = Postgrex.stream(conn, query, [])
+        stream = Postgrex.stream(conn, "COPY posts FROM STDIN", [])
         Enum.into(File.stream!("posts"), stream)
       end)
   """
-  @spec stream(DBConnection.t, Postgrex.Query.t, list, Keyword.t) :: Postgrex.Stream.t
+  @spec stream(DBConnection.t, iodata | Postgrex.Query.t, list, Keyword.t) ::
+    Postgrex.Stream.t
   def stream(%DBConnection{} = conn, query, params, options \\ [])  do
-    max_rows = options[:max_rows] || @max_rows
-    %Postgrex.Stream{conn: conn, max_rows: max_rows, options: options,
-                     params: params, query: query}
+    options =
+      options
+      |> defaults()
+      |> Keyword.put_new(:max_rows, @max_rows)
+    %Postgrex.Stream{conn: conn, query: query, params: params, options: options}
   end
 
   ## Helpers

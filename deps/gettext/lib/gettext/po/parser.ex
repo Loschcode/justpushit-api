@@ -1,6 +1,7 @@
 defmodule Gettext.PO.Parser do
   @moduledoc false
 
+  alias Gettext.PO.Translations
   alias Gettext.PO.Translation
   alias Gettext.PO.PluralTranslation
 
@@ -92,27 +93,22 @@ defmodule Gettext.PO.Parser do
   end
 
   defp check_for_duplicates(translations) do
-    try do
-      Enum.reduce translations, %{}, fn(t, acc) ->
-        id = translation_id(t)
-        if old_line = acc[id] do
-          throw({t, old_line})
-        else
-          Map.put_new(acc, id, t.po_source_line)
-        end
+    duplicate = Enum.reduce_while(translations, %{}, fn(t, acc) ->
+      key = Translations.key(t)
+      if old_line = acc[key] do
+        {:halt, {t, old_line}}
+      else
+        {:cont, Map.put(acc, key, t.po_source_line)}
       end
+    end)
 
-      :ok
-    catch
+    case duplicate do
       {t, old_line} ->
         build_duplicated_error(t, old_line)
+      _other ->
+        :ok
     end
   end
-
-  defp translation_id(%Translation{msgid: id}),
-    do: id
-  defp translation_id(%PluralTranslation{msgid: id, msgid_plural: idp}),
-    do: {id, idp}
 
   defp build_duplicated_error(%Translation{} = t, old_line) do
     id = IO.iodata_to_binary(t.msgid)

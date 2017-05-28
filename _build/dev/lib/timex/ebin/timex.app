@@ -61,7 +61,8 @@
                         'Elixir.Timex.TimezoneInfo','Elixir.Timex.Translator',
                         'Elixir.Timex.Types']},
               {registered,[]},
-              {vsn,"3.1.5"},
+              {vsn,"3.1.15"},
               {applications,[kernel,stdlib,elixir,logger,tzdata,gettext,
                              combine]},
-              {env,[{local_timezone,nil},{default_locale,<<"en">>}]}]}.
+              {env,[{local_timezone,nil},{default_locale,<<"en">>}]},
+              {mod,{'Elixir.Timex',[]}}]}.

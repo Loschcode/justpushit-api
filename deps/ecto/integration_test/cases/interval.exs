@@ -5,9 +5,8 @@ defmodule Ecto.Integration.IntervalTest do
   alias Ecto.Integration.TestRepo
   import Ecto.Query
 
-  @posted %Ecto.Date{year: 2014, month: 1, day: 1}
-  @inserted_at %Ecto.DateTime{year: 2014, month: 1, day: 1,
-                              hour: 2, min: 0, sec: 0, usec: 0}
+  @posted ~D[2014-01-01]
+  @inserted_at ~N[2014-01-01 02:00:00.0]
 
   setup do
     TestRepo.insert!(%Post{posted: @posted, inserted_at: @inserted_at})
@@ -61,6 +60,15 @@ defmodule Ecto.Integration.IntervalTest do
 
   test "date_add with dynamic" do
     posted = @posted
+    assert [{2015, 1, 1}]  = TestRepo.all(from p in Post, select: date_add(^posted, ^1, ^"year"))
+    assert [{2014, 4, 1}]  = TestRepo.all(from p in Post, select: date_add(^posted, ^3, ^"month"))
+    assert [{2014, 1, 22}] = TestRepo.all(from p in Post, select: date_add(^posted, ^3, ^"week"))
+    assert [{2014, 1, 6}]  = TestRepo.all(from p in Post, select: date_add(^posted, ^5, ^"day"))
+    assert [{2014, 1, 3}]  = TestRepo.all(from p in Post, select: date_add(^posted, ^48, ^"hour"))
+  end
+
+  test "date_add with Ecto.Date" do
+    posted = @posted |> Date.to_erl |> Ecto.Date.from_erl
     assert [{2015, 1, 1}]  = TestRepo.all(from p in Post, select: date_add(^posted, ^1, ^"year"))
     assert [{2014, 4, 1}]  = TestRepo.all(from p in Post, select: date_add(^posted, ^3, ^"month"))
     assert [{2014, 1, 22}] = TestRepo.all(from p in Post, select: date_add(^posted, ^3, ^"week"))
@@ -236,6 +244,19 @@ defmodule Ecto.Integration.IntervalTest do
            TestRepo.all(from p in Post, where: field(p, ^field) > datetime_add(^inserted_at, -5, ^"day"))
   end
 
+  test "datetime_add with Ecto.DateTime" do
+    inserted_at = @inserted_at |> NaiveDateTime.to_erl |> Ecto.DateTime.from_erl
+    field = :inserted_at
+    assert [_]  =
+      TestRepo.all(from p in Post, where: p.inserted_at > datetime_add(^inserted_at, ^-1, "year"))
+    assert [_]  =
+      TestRepo.all(from p in Post, where: p.inserted_at > datetime_add(^inserted_at, -3, "month"))
+    assert [_]  =
+      TestRepo.all(from p in Post, where: field(p, ^field) > datetime_add(^inserted_at, ^-3, ^"week"))
+    assert [_]  =
+      TestRepo.all(from p in Post, where: field(p, ^field) > datetime_add(^inserted_at, -5, ^"day"))
+  end
+
   test "datetime_add with negative interval" do
     dec = Decimal.new(-1)
     assert [{{2013, 1, 1}, _}] =
@@ -251,7 +272,7 @@ defmodule Ecto.Integration.IntervalTest do
   end
 
   test "from_now" do
-    current = Ecto.DateTime.utc.year
+    current = DateTime.utc_now.year
     dec = Decimal.new(5)
     assert [{{y, _, _}, _}] = TestRepo.all(from p in Post, select: from_now(5, "year"))
     assert y > current
@@ -266,7 +287,7 @@ defmodule Ecto.Integration.IntervalTest do
   end
 
   test "ago" do
-    current = Ecto.DateTime.utc.year
+    current = DateTime.utc_now.year
     dec = Decimal.new(5)
     assert [{{y, _, _}, _}] = TestRepo.all(from p in Post, select: ago(5, "year"))
     assert y < current

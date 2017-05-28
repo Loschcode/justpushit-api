@@ -1,5 +1,56 @@
 # Changelog
 
+## v0.13.2 (2017-03-05)
+
+* Bug fixes
+  * Do not build invalid dates at compilation time on Elixir master
+
+## v0.13.1 (2017-02-20)
+
+* Enhancements
+  * Allow naming Postgrex.Notifications server
+  * Provide tsvector and lexeme support using binary formats
+
+* Bug fixes
+  * Fix encoding of Decimal values that would be wrong in certain circumstances
+  * Add `:crypto` to applications
+  * Specify proper Elixir dependency
+  * Restore compatibility with postgres versions prior to 8.4 and with redshift
+
+## v0.13.0 (2016-12-17)
+
+* Enchancements
+  * Support built-in geometry types
+  * Fallback to `PGDATABASE` system env for the database
+  * Support `bit` and `varbit` types
+  * Add postgres error code to error messages
+  * Support unprepared when using a stream
+  * `:connect_timeout` and `:handshake_timeout` to configure tcp connect and handshake timeouts
+  * Improve numeric encode/decode
+
+* Bug fixes
+  * Quote channel on listen/unlisten
+  * Check datetime structs available before defining calendar extension
+  * Backoff all awaiting connections if a bootstrap fails to prevent timeout loop
+  * Handle idle admin shutdown of postgres backend
+  * Fix rebootstrap query to be O(Nlog(N)) instead of O(N^2)
+  * Fix encoding of numerical values
+
+* Backwards incompatible changes
+  * `:copy_data` query option is no longer supported and data can only be copied to the database using a collectable
+  * Query struct has removed encoders/decoders and changed param_info/result_info values
+  * Extensions now use a new encoder/decoder API based on quoted expressions
+  * The `:extensions`, `:decode_binary` and `:null` options in `start_link` are no longer supported in favor of defining custom types with `Postgrex.Types.define(module, extra_extensions, options)`. `Postgrex.Types.define/3` must be called on its own file, outside of any module and function, as it only needs to be defined once during compilation.
+
+## v0.12.1 (2016-09-29)
+
+* Enchancements
+  * Support special "char" type
+
+* Bug fixes
+  * Limit re-bootstrap to one connection at a time
+  * Fix re-bootstrap of new composite types that use old types
+
 ## v0.12.0 (2016-09-06)
 
 * Enhancements

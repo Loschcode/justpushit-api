@@ -1,3 +1,5 @@
+import Kernel, except: [apply: 3]
+
 defmodule Ecto.Query.Builder.Preload do
   @moduledoc false
   alias Ecto.Query.Builder
@@ -61,9 +63,8 @@ defmodule Ecto.Query.Builder.Preload do
 
   defp escape(other, _mode, _preloads, _assocs, _vars) do
     Builder.error! "`#{Macro.to_string other}` is not a valid preload expression. " <>
-                   "preload expects an atom, a (nested) list of atoms or a (nested) " <>
-                   "keyword list with a binding, atoms or lists as values. " <>
-                   "Use ^ if you want to interpolate a value"
+                   "preload expects an atom, a list of atoms or a keyword list with " <>
+                   "more preloads as values. Use ^ on the outermost preload to interpolate a value"
   end
 
   defp escape_each({key, {:^, _, [inner]}}, _mode, {preloads, assocs}, _vars) do
@@ -137,7 +138,7 @@ defmodule Ecto.Query.Builder.Preload do
   """
   @spec build(Macro.t, [Macro.t], Macro.t, Macro.Env.t) :: Macro.t
   def build(query, binding, expr, env) do
-    binding = Builder.escape_binding(binding)
+    {query, binding} = Builder.escape_binding(query, binding)
     {preloads, assocs} = escape(expr, binding)
     Builder.apply_query(query, __MODULE__, [Enum.reverse(preloads), Enum.reverse(assocs)], env)
   end
@@ -146,8 +147,10 @@ defmodule Ecto.Query.Builder.Preload do
   The callback applied by `build/4` to build the query.
   """
   @spec apply(Ecto.Queryable.t, term, term) :: Ecto.Query.t
+  def apply(%Ecto.Query{preloads: p, assocs: a} = query, preloads, assocs) do
+    %{query | preloads: p ++ preloads, assocs: a ++ assocs}
+  end
   def apply(query, preloads, assocs) do
-    query = Ecto.Queryable.to_query(query)
-    %{query | preloads: query.preloads ++ preloads, assocs: query.assocs ++ assocs}
+    apply(Ecto.Queryable.to_query(query), preloads, assocs)
   end
 end

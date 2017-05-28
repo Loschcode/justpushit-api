@@ -63,7 +63,7 @@ defmodule Gettext.Compiler do
 
   defp macros do
     quote unquote: false do
-      defmacro dgettext(domain, msgid, bindings \\ Macro.escape(%{})) do
+      defmacro dgettext_noop(domain, msgid) do
         domain = Gettext.Compiler.expand_to_binary(domain, "domain", __MODULE__, __CALLER__)
         msgid = Gettext.Compiler.expand_to_binary(msgid, "msgid", __MODULE__, __CALLER__)
 
@@ -71,8 +71,37 @@ defmodule Gettext.Compiler do
           Gettext.Extractor.extract(__CALLER__, __MODULE__, domain, msgid)
         end
 
+        msgid
+      end
+
+      defmacro gettext_noop(msgid) do
         quote do
-          Gettext.dgettext(unquote(__MODULE__), unquote(domain), unquote(msgid), unquote(bindings))
+          unquote(__MODULE__).dgettext_noop("default", unquote(msgid))
+        end
+      end
+
+      defmacro dngettext_noop(domain, msgid, msgid_plural) do
+        domain = Gettext.Compiler.expand_to_binary(domain, "domain", __MODULE__, __CALLER__)
+        msgid = Gettext.Compiler.expand_to_binary(msgid, "msgid", __MODULE__, __CALLER__)
+        msgid_plural = Gettext.Compiler.expand_to_binary(msgid_plural, "msgid_plural", __MODULE__, __CALLER__)
+
+        if Gettext.Extractor.extracting? do
+          Gettext.Extractor.extract(__CALLER__, __MODULE__, domain, {msgid, msgid_plural})
+        end
+
+        {msgid, msgid_plural}
+      end
+
+      defmacro ngettext_noop(msgid, msgid_plural) do
+        quote do
+          unquote(__MODULE__).dngettext_noop("default", unquote(msgid), unquote(msgid_plural))
+        end
+      end
+
+      defmacro dgettext(domain, msgid, bindings \\ Macro.escape(%{})) do
+        quote do
+          msgid = unquote(__MODULE__).dgettext_noop(unquote(domain), unquote(msgid))
+          Gettext.dgettext(unquote(__MODULE__), unquote(domain), msgid, unquote(bindings))
         end
       end
 
@@ -83,20 +112,15 @@ defmodule Gettext.Compiler do
       end
 
       defmacro dngettext(domain, msgid, msgid_plural, n, bindings \\ Macro.escape(%{})) do
-        domain = Gettext.Compiler.expand_to_binary(domain, "domain", __MODULE__, __CALLER__)
-        msgid = Gettext.Compiler.expand_to_binary(msgid, "msgid", __MODULE__, __CALLER__)
-        msgid_plural = Gettext.Compiler.expand_to_binary(msgid_plural, "msgid_plural", __MODULE__, __CALLER__)
-
-        if Gettext.Extractor.extracting? do
-          Gettext.Extractor.extract(__CALLER__, __MODULE__, domain, {msgid, msgid_plural})
-        end
-
         quote do
+          {msgid, msgid_plural} =
+            unquote(__MODULE__).dngettext_noop(unquote(domain), unquote(msgid), unquote(msgid_plural))
+
           Gettext.dngettext(
             unquote(__MODULE__),
             unquote(domain),
-            unquote(msgid),
-            unquote(msgid_plural),
+            msgid,
+            msgid_plural,
             unquote(n),
             unquote(bindings)
           )
@@ -132,18 +156,27 @@ defmodule Gettext.Compiler do
   def dynamic_clauses do
     quote do
       def lgettext(locale, domain, msgid, bindings) do
+        import Gettext.Interpolation, only: [to_interpolatable: 1, interpolate: 2]
+
         Gettext.Compiler.warn_if_domain_contains_slashes(domain)
-        msgid
-        |> Gettext.Interpolation.to_interpolatable()
-        |> Gettext.Interpolation.interpolate(:default, bindings)
+
+        case interpolate(to_interpolatable(msgid), bindings) do
+          {:ok, interpolated} -> {:default, interpolated}
+          other -> other
+        end
       end
 
       def lngettext(_locale, domain, msgid, msgid_plural, n, bindings) do
+        import Gettext.Interpolation, only: [to_interpolatable: 1, interpolate: 2]
+
         Gettext.Compiler.warn_if_domain_contains_slashes(domain)
+        string = (if n == 1, do: msgid, else: msgid_plural)
         bindings = Map.put(bindings, :count, n)
-        (if n == 1, do: msgid, else: msgid_plural)
-        |> Gettext.Interpolation.to_interpolatable()
-        |> Gettext.Interpolation.interpolate(:default, bindings)
+
+        case interpolate(to_interpolatable(string), bindings) do
+          {:ok, interpolated} -> {:default, interpolated}
+          other -> other
+        end
       end
     end
   end
@@ -297,7 +330,7 @@ defmodule Gettext.Compiler do
         unquote(match) ->
           {:ok, unquote(interpolation)}
         %{} ->
-          Gettext.Interpolation.interpolate(unquote(interpolatable), :ok, var!(bindings))
+          Gettext.Interpolation.interpolate(unquote(interpolatable), var!(bindings))
       end
     end
   end

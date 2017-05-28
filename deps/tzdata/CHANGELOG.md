@@ -1,5 +1,23 @@
 # Changelog for Tzdata
 
+## [0.5.12] - 2017-04-16
+### Changed
+- Ships with tz data version 2017b instead of 2016c
+- When checking for updated tz data, use Last Modified header
+
+### Fixed
+- Fix Elixir 1.5 warnings (Gal Tsubery)
+- Fix issue with missing directories (Fabien Henon)
+
+## [0.5.11] - 2017-03-07
+### Changed
+- For auto update use GET to find the file size if the headers do not have a Content-Length
+
+## [0.5.10] - 2016-12-24
+### Fixed
+
+- Avoid handle_info errors in Elixir 1.4.0-rc.1 by using send_after and handle_info instead of Task in ReleaseUpdater. (Josh Bodah)
+
 ## [0.5.9] - 2016-08-12
 ### Changed
 
@@ -7,7 +25,7 @@
 
 ### Fixed
 
-- Supress :random deprecated warning. We want to preserve compatability with older warnings of Elixir and Erlang.
+- Supress :random deprecated warning. We want to preserve compatability with older versions of Elixir and Erlang.
 
 ## [0.5.8] - 2016-06-05
 ### Changed

@@ -16,7 +16,17 @@ defmodule CORSPlug do
   end
 
   def init(options) do
-    Keyword.merge(defaults, options)
+    options
+    |> prepare_cfg(Application.get_all_env(:cors_plug))
+    |> Keyword.update!(:expose, &Enum.join(&1, ","))
+    |> Keyword.update!(:methods, &Enum.join(&1, ","))
+  end
+
+  defp prepare_cfg(options, nil), do: Keyword.merge(defaults(), options)
+  defp prepare_cfg(options, env) do
+    defaults()
+    |> Keyword.merge(env)
+    |> Keyword.merge(options)
   end
 
   def call(conn, options) do
@@ -32,16 +42,19 @@ defmodule CORSPlug do
     headers(%{conn | method: nil}, options) ++ [
       {"access-control-max-age", "#{options[:max_age]}"},
       {"access-control-allow-headers", allowed_headers(options[:headers], conn)},
-      {"access-control-allow-methods", Enum.join(options[:methods], ",")}
+      {"access-control-allow-methods", options[:methods]}
     ]
   end
 
   # universal headers
   defp headers(conn, options) do
+    allowed_origin = origin(options[:origin], conn)
+
     [
-      {"access-control-allow-origin", origin(options[:origin], conn)},
-      {"access-control-expose-headers", Enum.join(options[:expose], ",")},
-      {"access-control-allow-credentials", "#{options[:credentials]}"}
+      {"access-control-allow-origin", allowed_origin},
+      {"access-control-expose-headers", options[:expose]},
+      {"access-control-allow-credentials", "#{options[:credentials]}"},
+      {"vary", vary(allowed_origin)}
     ]
   end
 
@@ -55,6 +68,12 @@ defmodule CORSPlug do
     Enum.join(key, ",")
   end
 
+  # return origin if it matches regex, otherwise "null" string
+  defp origin(%Regex{} = regex, conn) do
+    req_origin = conn |> request_origin |> to_string
+    if req_origin =~ regex, do: req_origin, else: "null"
+  end
+
   # normalize non-list to list
   defp origin(key, conn) when not is_list(key) do
     origin(List.wrap(key), conn)
@@ -62,7 +81,7 @@ defmodule CORSPlug do
 
   # whitelist internal requests
   defp origin([:self], conn) do
-    get_req_header(conn, "origin") |> List.first || "*"
+    request_origin(conn) || "*"
   end
 
   # return "*" if origin list is ["*"]
@@ -73,7 +92,16 @@ defmodule CORSPlug do
   # return request origin if in origin list, otherwise "null" string
   # see: https://www.w3.org/TR/cors/#access-control-allow-origin-response-header
   defp origin(origins, conn) when is_list(origins) do
-    req_origin = get_req_header(conn, "origin") |> List.first
+    req_origin = request_origin(conn)
     if req_origin in origins, do: req_origin, else: "null"
   end
+
+  defp request_origin(%Plug.Conn{req_headers: headers}) do
+    Enum.find_value(headers, fn({k, v}) -> k =~ ~r/^origin$/i && v end)
+  end
+
+  # Set the Vary response header
+  # see: https://www.w3.org/TR/cors/#resource-implementation
+  defp vary("*"), do: ""
+  defp vary(_allowed_origin), do: "Origin"
 end

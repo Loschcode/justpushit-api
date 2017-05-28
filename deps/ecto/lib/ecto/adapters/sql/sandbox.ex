@@ -232,16 +232,28 @@ defmodule Ecto.Adapters.SQL.Sandbox do
   [`DBConnection.Ownership`](https://hexdocs.pm/db_connection/DBConnection.Ownership.html)
   and defaults to 15000ms. Timeouts are given as integers in milliseconds.
 
-  ### Database deadlocks
+  Alternately, if this is an issue for only a handful of long-running tests,
+  you can pass an `:ownership_timeout` option when calling
+  `Ecto.Adapters.SQL.Sandbox.checkout/2` instead of setting a longer timeout
+  globally in your config.
+
+  ### Database locks and deadlocks
 
   Since the sandbox relies on concurrent transactional tests, there is
   a chance your tests may trigger deadlocks in your database. This is
   specially true with MySQL, where the solutions presented here are not
-  enough to avoid deadlocks and thefore making the use of concurrent tests
+  enough to avoid deadlocks and therefore making the use of concurrent tests
   with MySQL prohibited.
 
-  However, even on databases like PostgreSQL, deadlocks can still occur.
-  For example, consider this scenario:
+  However, even on databases like PostgreSQL, performance degradations or
+  deadlocks may still occur. For example, imagine multiple tests are
+  trying to insert the same user to the database. They will attempt to
+  retrieve the same database lock, causing only one test to succeed and
+  run while all other tests wait for the lock.
+
+  In other situations, two different tests may proceed in a way that
+  each test retrieves locks desired by the other, leading to a situation
+  that cannot be resolved, a deadlock. For instance:
 
       Transaction 1:                Transaction 2:
       begin
@@ -252,7 +264,7 @@ defmodule Ecto.Adapters.SQL.Sandbox do
       update posts where id = 2
                             **deadlock**
 
-  There are different ways to avoid this problem. One of them is
+  There are different ways to avoid such problems. One of them is
   to make sure your tests work on distinct data. Regardless of
   your choice between using fixtures or factories for test data,
   make sure you get a new set of data per test. This is specially
@@ -283,13 +295,12 @@ defmodule Ecto.Adapters.SQL.Sandbox do
 
   defmodule Connection do
     @moduledoc false
-    @behaviour DBConnection
+    if Code.ensure_loaded?(DBConnection) do
+      @behaviour DBConnection
+    end
 
-    def connect({conn_mod, state}) do
-      case conn_mod.init(state) do
-        {:ok, state} -> {:ok, {conn_mod, state, false}}
-        {:error, _} = err -> err
-      end
+    def connect(_opts) do
+      raise "should never be invoked"
     end
 
     def disconnect(err, {conn_mod, state, _in_transaction?}) do
@@ -323,10 +334,16 @@ defmodule Ecto.Adapters.SQL.Sandbox do
       do: proxy(:handle_prepare, state, [query, maybe_savepoint(opts, state)])
     def handle_execute(query, params, opts, state),
       do: proxy(:handle_execute, state, [query, params, maybe_savepoint(opts, state)])
-    def handle_execute_close(query, params, opts, state),
-      do: proxy(:handle_execute_close, state, [query, params, maybe_savepoint(opts, state)])
     def handle_close(query, opts, state),
       do: proxy(:handle_close, state, [query, maybe_savepoint(opts, state)])
+    def handle_declare(query, params, opts, state),
+      do: proxy(:handle_declare, state, [query, params, maybe_savepoint(opts, state)])
+    def handle_first(query, cursor, opts, state),
+      do: proxy(:handle_first, state, [query, cursor, maybe_savepoint(opts, state)])
+    def handle_next(query, cursor, opts, state),
+      do: proxy(:handle_next, state, [query, cursor, maybe_savepoint(opts, state)])
+    def handle_deallocate(query, cursor, opts, state),
+      do: proxy(:handle_deallocate, state, [query, cursor, maybe_savepoint(opts, state)])
     def handle_info(msg, state),
       do: proxy(:handle_info, state, [msg])
 
@@ -347,7 +364,9 @@ defmodule Ecto.Adapters.SQL.Sandbox do
 
   defmodule Pool do
     @moduledoc false
-    @behaviour DBConnection.Pool
+    if Code.ensure_loaded?(DBConnection) do
+      @behaviour DBConnection.Pool
+    end
 
     def ensure_all_started(_opts, _type) do
       raise "should never be invoked"
@@ -394,7 +413,7 @@ defmodule Ecto.Adapters.SQL.Sandbox do
     def stop(owner, reason, {_conn_mod, conn_state, _in_transaction?}, opts) do
       opts[:sandbox_pool].stop(owner, reason, conn_state, opts)
     end
- end
+  end
 
   @doc """
   Sets the mode for the `repo` pool.
@@ -438,6 +457,11 @@ defmodule Ecto.Adapters.SQL.Sandbox do
       a transaction. Defaults to true.
 
     * `:isolation` - set the query to the given isolation level
+
+    * `:ownership_timeout` - limits how long the connection can be
+      owned. Defaults to the compiled value from your repo config in
+      `config/config.exs` (or preferably in `config/test.exs`), or
+      15000 ms if not set.
   """
   def checkout(repo, opts \\ []) do
     {name, pool_opts} =
@@ -447,21 +471,28 @@ defmodule Ecto.Adapters.SQL.Sandbox do
         repo.__pool__
       end
 
+    pool_opts_overrides = Keyword.take(opts, [:ownership_timeout])
+    pool_opts = Keyword.merge(pool_opts, pool_opts_overrides)
+
     case DBConnection.Ownership.ownership_checkout(name, pool_opts) do
       :ok ->
         if isolation = opts[:isolation] do
-          query = "SET TRANSACTION ISOLATION LEVEL #{isolation}"
-          case Ecto.Adapters.SQL.query(repo, query, [], sandbox_subtransaction: false) do
-            {:ok, _} ->
-              :ok
-            {:error, error} ->
-              checkin(repo, opts)
-              raise error
-          end
+          set_transaction_isolation_level(repo, isolation)
         end
         :ok
       other ->
         other
+    end
+  end
+
+  defp set_transaction_isolation_level(repo, isolation) do
+    query = "SET TRANSACTION ISOLATION LEVEL #{isolation}"
+    case Ecto.Adapters.SQL.query(repo, query, [], sandbox_subtransaction: false) do
+      {:ok, _} ->
+        :ok
+      {:error, error} ->
+        checkin(repo, [])
+        raise error
     end
   end
 

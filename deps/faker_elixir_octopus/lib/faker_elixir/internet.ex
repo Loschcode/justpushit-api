@@ -14,10 +14,18 @@ defmodule FakerElixir.Internet do
   "demarcus@ezra.io"
   ```
 
-  You can set :popular to generate an email with a popular domain
+  You can set ```:popular``` to generate an email with a popular domain
+
   ```
   FakerElixir.Internet.email(:popular)
   "candelario@gmail.com"
+  ```
+
+  You can set ```:school``` to generate an email with an university domain
+
+  ```
+  FakerElixir.Internet.email(:school)
+  "trycia@uab.edu"
   ```
   """
   def email do
@@ -30,6 +38,12 @@ defmodule FakerElixir.Internet do
     name = build_name_email()
 
     email(:popular, name)
+  end
+
+  def email(:school) do
+    name = build_name_email()
+
+    email(:school, name)
   end
 
   @doc """
@@ -51,7 +65,6 @@ defmodule FakerElixir.Internet do
   end
 
   @doc """
-  Return an email with a popular domain for the name given
 
   ## Examples
 
@@ -59,12 +72,24 @@ defmodule FakerElixir.Internet do
   iex> FakerElixir.Internet.email(:popular, "Peter Sobieska")
   "peter.sobieska@hotmail.com"
   ```
+
+  ```
+  iex> FakerElixir.Internet.email(:school, "Harry potter")
+  "harry.potter@pittstate.edu"
+  ```
   """
   def email(:popular, name) do
     name = name |> slug
     domain_popular = :domain_popular_emails |> fetch |> pick
 
     "#{name}@#{domain_popular}"
+  end
+
+  def email(:school, name) do
+    name = name |> slug
+    domain_school = :domain_school_emails |> fetch |> pick
+
+    "#{name}@#{domain_school}"
   end
 
   defp build_name_email do
@@ -225,7 +250,7 @@ defmodule FakerElixir.Internet do
   end
 
   def password(:strong) do
-    do_password_strong
+    do_password_strong()
   end
 
 
@@ -280,7 +305,7 @@ defmodule FakerElixir.Internet do
 
     password = "#{first_name}#{number}"
 
-    if should_complexify? do
+    if should_complexify?() do
       normal_complexifier(password)
     else
       password
@@ -298,7 +323,7 @@ defmodule FakerElixir.Internet do
 
     password = "#{first_name}#{last_name}"
 
-    if should_complexify? do
+    if should_complexify?() do
       normal_complexifier(password)
     else
       password
@@ -388,7 +413,7 @@ defmodule FakerElixir.Internet do
     password
     |> String.split("")
     |> Enum.map_join("", fn(x) ->
-      if should_upcase? do
+      if should_upcase?() do
         String.upcase(x)
       else
         x
@@ -412,11 +437,11 @@ defmodule FakerElixir.Internet do
 
 
   defp should_complexify? do
-    pick_true_or_false
+    pick_true_or_false()
   end
 
   defp should_upcase? do
-    pick_true_or_false
+    pick_true_or_false()
   end
 
   ##

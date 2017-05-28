@@ -6,4 +6,4 @@
                         'Elixir.Inflex.Parameterize',
                         'Elixir.Inflex.Pluralize','Elixir.Inflex.Underscore']},
               {registered,[]},
-              {vsn,"1.8.0"}]}.
+              {vsn,"1.8.1"}]}.

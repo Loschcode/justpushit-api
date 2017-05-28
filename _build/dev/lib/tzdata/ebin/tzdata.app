@@ -13,7 +13,7 @@
                         'Elixir.Tzdata.TableData','Elixir.Tzdata.TableParser',
                         'Elixir.Tzdata.Util']},
               {registered,[]},
-              {vsn,"0.5.9"},
+              {vsn,"0.5.12"},
               {applications,[kernel,stdlib,elixir,hackney,logger]},
               {env,[{autoupdate,enabled},{data_dir,nil}]},
               {mod,{'Elixir.Tzdata.App',[]}}]}.

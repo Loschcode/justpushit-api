@@ -65,6 +65,21 @@ defmodule Ecto.Adapters.Postgres do
     * `:lc_ctype` - the character classification
     * `:dump_path` - where to place dumped structures
 
+  ## Extensions
+
+  Both PostgreSQL and its adapter for Elixir, Postgrex, support an
+  extension system. If you want to use custom extensions for Postgrex
+  alongside Ecto, you must define a type module with your extensions.
+  Create a new file anywhere in your application with the following:
+
+      Postgrex.Types.define(MyApp.PostgresTypes,
+                            [MyExtension.Foo, MyExtensionBar] ++ Ecto.Adapters.Postgres.extensions(),
+                            json: Poison)
+
+  Once your type module is defined, you can configure the repository to use it:
+
+      config :my_app, MyApp.Repo, types: MyApp.PostgresTypes
+
   """
 
   # Inherit all behaviour from Ecto.Adapters.SQL
@@ -74,7 +89,15 @@ defmodule Ecto.Adapters.Postgres do
   @behaviour Ecto.Adapter.Storage
   @behaviour Ecto.Adapter.Structure
 
-  ## Support arrays in place of IN
+  @doc """
+  All Ecto extensions for Postgrex.
+  """
+  def extensions do
+    [Ecto.Adapters.Postgres.Date, Ecto.Adapters.Postgres.Time,
+     Ecto.Adapters.Postgres.Timestamp, Ecto.Adapters.Postgres.TimestampTZ]
+  end
+
+  # Support arrays in place of IN
   @doc false
   def dumpers({:embed, _} = type, _),  do: [&Ecto.Adapters.SQL.dump_embed(type, &1)]
   def dumpers({:in, sub}, {:in, sub}), do: [{:array, sub}]
@@ -191,7 +214,7 @@ defmodule Ecto.Adapters.Postgres do
 
     opts =
       opts
-      |> Keyword.delete(:name)
+      |> Keyword.drop([:name, :log])
       |> Keyword.put(:pool, DBConnection.Connection)
       |> Keyword.put(:backoff_type, :stop)
 

@@ -4,11 +4,11 @@ defmodule CorsPlug.Mixfile do
   def project do
     [
       app: :cors_plug,
-      version: "1.1.2",
+      version: "1.3.0",
       elixir: ">= 1.0.0",
-      deps: deps,
-      package: package,
-      description: description,
+      deps: deps(),
+      package: package(),
+      description: description(),
       docs: [
         extras: ~W(README.md CHANGELOG.md)
       ]
@@ -33,11 +33,10 @@ defmodule CorsPlug.Mixfile do
   # Type `mix help deps` for more examples and options
   defp deps do
     [
-      {:cowboy, "~> 1.0.0"},
       {:plug, "> 0.8.0"},
 
       {:ex_doc, "~> 0.11", only: :dev},
-      {:earmark, "~> 0.2", only: :dev},
+      {:earmark, "~> 1.2", only: :dev},
     ]
   end
 

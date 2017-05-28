@@ -14,16 +14,33 @@ defmodule Timex.Format.Duration.Formatters.Humanized do
   @month  @day * 30
   @year   @day * 365
 
+  @microsecond 1_000_000
+
   @doc """
-  Return a human readable string representing the time interval.
+  Return a human readable string representing the absolute value of duration (i.e. would
+  return the same output for both negative and positive representations of a given duration)
 
   ## Examples
 
-      iex> alias Timex.Duration
-      iex> Duration.from_erl({1435, 180354, 590264}) |> #{__MODULE__}.format
-      "45 years, 6 months, 5 days, 21 hours, 12 minutes, 34 seconds, 590.264 milliseconds"
-      iex> Duration.from_erl({0, 65, 0}) |> #{__MODULE__}.format
+      iex> use Timex
+      ...> Duration.from_erl({0, 1, 1_000_000}) |> #{__MODULE__}.format
+      "2 seconds"
+
+      iex> use Timex
+      ...> Duration.from_erl({0, 1, 1_000_100}) |> #{__MODULE__}.format
+      "2 seconds, 100 microseconds"
+
+      iex> use Timex
+      ...> Duration.from_erl({0, 65, 0}) |> #{__MODULE__}.format
       "1 minute, 5 seconds"
+
+      iex> use Timex
+      ...> Duration.from_erl({0, -65, 0}) |> #{__MODULE__}.format
+      "1 minute, 5 seconds"
+
+      iex> use Timex
+      ...> Duration.from_erl({1435, 180354, 590264}) |> #{__MODULE__}.format
+      "45 years, 6 months, 5 days, 21 hours, 12 minutes, 34 seconds, 590.264 milliseconds"
 
   """
   @spec format(Duration.t) :: String.t | {:error, term}
@@ -36,12 +53,12 @@ defmodule Timex.Format.Duration.Formatters.Humanized do
   ## Examples
 
       iex> use Timex
-      ...> Duration.from_erl({1435, 180354, 590264}) |> #{__MODULE__}.lformat("ru")
-      "45 года  6 месяца  5 днем  21 час  12 минуты  34 секунды  590.264 миллисекунды"
+      ...> Duration.from_erl({0, 65, 0}) |> #{__MODULE__}.lformat("ru")
+      "1 минута  5 секунд"
 
       iex> use Timex
-      ...> Duration.from_erl({0, 65, 0}) |> #{__MODULE__}.lformat("ru")
-      "1 минута  5 секунды"
+      ...> Duration.from_erl({1435, 180354, 590264}) |> #{__MODULE__}.lformat("ru")
+      "45 лет  6 месяцев  5 дней  21 час  12 минут  34 секунды  590.264 миллисекунд"
 
   """
   @spec lformat(Duration.t, String.t) :: String.t | {:error, term}
@@ -66,8 +83,10 @@ defmodule Timex.Format.Duration.Formatters.Humanized do
     end
   end
 
-  defp deconstruct(%Duration{microseconds: micro} = duration),
-    do: deconstruct({Duration.to_seconds(duration, truncate: true), micro}, [])
+  defp deconstruct(duration) do
+    micros = Duration.to_microseconds(duration) |> abs
+    deconstruct({div(micros, @microsecond), rem(micros, @microsecond)}, [])
+  end
   defp deconstruct({0, 0}, components),
     do: Enum.reverse(components)
   defp deconstruct({seconds, us}, components) when seconds > 0 do
@@ -81,12 +100,9 @@ defmodule Timex.Format.Duration.Formatters.Humanized do
       true -> deconstruct({0, us}, [{:second, seconds} | components])
     end
   end
-  defp deconstruct({seconds, micro}, components) when seconds < 0,
-    do: deconstruct({seconds * -1, micro}, components)
   defp deconstruct({0, micro}, components) do
     millis = micro
     |> Duration.from_microseconds
-    |> Duration.abs
     |> Duration.to_milliseconds()
     cond do
       millis >= 1 -> deconstruct({0, 0}, [{:millisecond, millis} | components])

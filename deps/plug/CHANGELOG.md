@@ -1,5 +1,53 @@
 ## Changelog
 
+## v1.3.5
+
+* Bug fixes
+  * Validate cookie headers
+
+## v1.3.4
+
+* Bug fixes
+  * Do not convert exits into errors
+
+## v1.3.3
+
+* Bug fixes
+  * Support improper lists, bitstrings and structs in safe_binary_to_term
+
+## v1.3.2
+
+* Bug fixes
+  * [Plug.Crypto] Provide safer deserialization mechanisms
+  * [Plug.Static] Properly handle null bytes
+
+## v1.3.1
+
+* Enhancements
+  * [Plug.Conn] Support arbitrary cookie attributes
+  * [Plug.SSL] Support tuple hosts in Plug.SSL
+  * [Plug.Static] Add ability to generate etags via a user defined function
+
+* Bug fixes
+  * [Plug.ErrorHandler] Do not unwrap errors wrapped in `Plug.Conn.WrapperError` when reraising
+
+## v1.3.0
+
+* Enhancements
+  * [Plug.Adapters.Cowboy] Support tuples with other than 2 elements in the adapter options
+  * [Plug.Adapters.Cowboy] Support controlling how multipart headers are parsed
+  * [Plug.Conn] Add the `:path_params` field to access path params apart from the `params` field
+  * [Plug.Conn.Status] Allow custom status codes to be configured and dynamically inflect their atom name
+  * [Plug.Debugger] Support content negotiation and defaults to Markdown when HTML cannot be served
+  * [Plug.Router] Extend `match/2` macros to accept a plug and options
+  * [Plug.Router] Make path parameters available in `conn.params`
+  * [Plug.Router] Add `:init_opts` option to `forward` macro for plug options
+  * [Plug.Router] Add `:assigns` option to router macros to assign values to `conn.assigns`
+
+* Bug fixes
+  * [Plug.Debugger] Do not show query parameters when debugging a page with bad query string
+  * [Plug.Parsers] Keep `body_params` unfetched if the content-type is allowed to pass through the parser
+
 ## v1.2.2
 
 * Bug fix

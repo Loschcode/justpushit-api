@@ -13,7 +13,7 @@ An [Elixir Plug](http://github.com/elixir-lang/plug) to add [CORS](http://www.w3
 ```elixir
 def deps do
   # ...
-  {:cors_plug, "~> 1.1"},
+  {:cors_plug, "~> 1.2"},
   #...
 end
 ```
@@ -65,11 +65,26 @@ On `GET`, `POST`, ... requests:
 * Access-Control-Expose-Headers
 * Access-Control-Allow-Credentials
 
-You can configure the value of these headers as follows:
+You can configure allowed origins as follows:
 
 ```elixir
-plug CORSPlug, origin: ["example.com"]
+plug CORSPlug, origin: ["http://example1.com", "http://example2.com"]
 ```
+
+Alternatively, you can use a regex:
+
+```elixir
+plug CORSPlug, origin: ~r/https?.*example\d?\.com$/
+```
+
+And also you can put configuration into config.exs:
+```elixir
+config :cors_plug,
+  origin: ["foo.bar"],
+  max_age: 86400,
+  methods: ["GET", "POST"]
+```
+Please note that options passed to the plug overrides app config but app config overrides default options.
 
 Please find the list of current defaults in [cors_plug.ex](lib/cors_plug.ex#L5:L15).
 

@@ -10,12 +10,6 @@ defmodule Ecto.Repo.Queryable do
 
   require Ecto.Query
 
-  def transaction(adapter, repo, opts, fun_or_multi) when is_list(opts) do
-    IO.write :stderr, "warning: Ecto.Repo.transaction/2 with opts as first " <>
-                      "argument is deprecated, please switch arguments\n#{Exception.format_stacktrace()}"
-    transaction(adapter, repo, fun_or_multi, opts)
-  end
-
   def transaction(adapter, repo, fun, opts) when is_function(fun, 0) do
     adapter.transaction(repo, opts, fun)
   end
@@ -37,7 +31,17 @@ defmodule Ecto.Repo.Queryable do
       queryable
       |> Ecto.Queryable.to_query
       |> Ecto.Query.Planner.returning(true)
+      |> attach_prefix(opts)
     execute(:all, repo, adapter, query, opts) |> elem(1)
+  end
+
+  def stream(repo, adapter, queryable, opts) when is_list(opts) do
+    query =
+      queryable
+      |> Ecto.Queryable.to_query
+      |> Ecto.Query.Planner.returning(true)
+      |> attach_prefix(opts)
+    stream(:all, repo, adapter, query, opts)
   end
 
   def get(repo, adapter, queryable, id, opts) do
@@ -81,7 +85,7 @@ defmodule Ecto.Repo.Queryable do
   end
 
   def update_all(repo, adapter, queryable, updates, opts) when is_list(opts) do
-    query = Query.from q in queryable, update: ^updates
+    query = Query.from queryable, update: ^updates
     update_all(repo, adapter, query, opts)
   end
 
@@ -89,8 +93,9 @@ defmodule Ecto.Repo.Queryable do
     query =
       queryable
       |> Ecto.Queryable.to_query
-      |> assert_no_select!(:update_all)
+      |> Ecto.Query.Planner.assert_no_select!(:update_all)
       |> Ecto.Query.Planner.returning(opts[:returning] || false)
+      |> attach_prefix(opts)
     execute(:update_all, repo, adapter, query, opts)
   end
 
@@ -98,25 +103,23 @@ defmodule Ecto.Repo.Queryable do
     query =
       queryable
       |> Ecto.Queryable.to_query
-      |> assert_no_select!(:delete_all)
+      |> Ecto.Query.Planner.assert_no_select!(:delete_all)
       |> Ecto.Query.Planner.returning(opts[:returning] || false)
+      |> attach_prefix(opts)
     execute(:delete_all, repo, adapter, query, opts)
   end
 
   ## Helpers
 
-  defp assert_no_select!(%{select: nil} = query, _operation) do
-    query
-  end
-  defp assert_no_select!(%{select: _} = query, operation) do
-    raise Ecto.QueryError,
-      query: query,
-      message: "`select` clause is not supported in `#{operation}`, " <>
-               "please pass the :returning option instead"
+  defp attach_prefix(query, opts) do
+    case Keyword.fetch(opts, :prefix) do
+      {:ok, prefix} -> %{query | prefix: prefix}
+      :error -> query
+    end
   end
 
   defp execute(operation, repo, adapter, query, opts) when is_list(opts) do
-    {meta, prepared, params} = Planner.query(query, operation, repo, adapter)
+    {meta, prepared, params} = Planner.query(query, operation, repo, adapter, 0)
 
     case meta do
       %{fields: nil} ->
@@ -131,6 +134,28 @@ defmodule Ecto.Repo.Queryable do
           rows
           |> Ecto.Repo.Assoc.query(assocs, sources)
           |> Ecto.Repo.Preloader.query(repo, preloads, take_0, postprocess, opts)}
+    end
+  end
+
+  defp stream(operation, repo, adapter, query, opts) do
+    {meta, prepared, params} = Planner.query(query, operation, repo, adapter, 0)
+
+    case meta do
+      %{fields: nil} ->
+        adapter.stream(repo, meta, prepared, params, nil, opts)
+        |> Stream.flat_map(fn({_, nil}) -> [] end)
+      %{select: select, fields: fields, prefix: prefix, take: take,
+        sources: sources, assocs: assocs, preloads: preloads} ->
+        preprocess    = preprocess(prefix, sources, adapter)
+        stream        = adapter.stream(repo, meta, prepared, params, preprocess, opts)
+        postprocess   = postprocess(select, fields, take)
+        {_, take_0}   = Map.get(take, 0, {:any, %{}})
+
+        Stream.flat_map(stream, fn({_, rows}) ->
+          rows
+          |> Ecto.Repo.Assoc.query(assocs, sources)
+          |> Ecto.Repo.Preloader.query(repo, preloads, take_0, postprocess, opts)
+        end)
     end
   end
 
@@ -150,7 +175,7 @@ defmodule Ecto.Repo.Queryable do
       {source, schema} when is_map(value) ->
         Ecto.Schema.__load__(schema, prefix, source, context, value,
                              &Ecto.Type.adapter_load(adapter, &1, &2))
-      %Ecto.SubQuery{sources: sources, fields: fields, select: select, take: take} ->
+      %Ecto.SubQuery{meta: %{sources: sources, fields: fields, select: select, take: take}} ->
         loaded = load_subquery(fields, value, prefix, context, sources, adapter)
         postprocess(select, fields, take).(loaded)
     end
@@ -273,7 +298,9 @@ defmodule Ecto.Repo.Queryable do
   defp to_map(value, fields) when is_list(value) do
     Enum.map(value, &to_map(&1, fields))
   end
-
+  defp to_map(nil, _fields) do
+    nil
+  end
   defp to_map(value, fields) do
     for field <- fields, into: %{} do
       case field do

@@ -7,8 +7,7 @@ defmodule Ecto.Integration.SQLTest do
   import Ecto.Query, only: [from: 2]
 
   test "fragmented types" do
-    datetime = %Ecto.DateTime{year: 2014, month: 1, day: 16,
-                              hour: 20, min: 26, sec: 51, usec: 0}
+    datetime = ~N[2014-01-16 20:26:51.000000]
     TestRepo.insert!(%Post{inserted_at: datetime})
     query = from p in Post, where: fragment("? >= ?", p.inserted_at, ^datetime), select: p.inserted_at
     assert [^datetime] = TestRepo.all(query)
@@ -16,8 +15,8 @@ defmodule Ecto.Integration.SQLTest do
 
   @tag :array_type
   test "fragment array types" do
-    datetime1 = %Ecto.DateTime{year: 2014, month: 1, day: 16, hour: 0, min: 0, sec: 0, usec: 0}
-    datetime2 = %Ecto.DateTime{year: 2014, month: 2, day: 16, hour: 0, min: 0, sec: 0, usec: 0}
+    datetime1 = ~N[2014-01-16 00:00:00.0]
+    datetime2 = ~N[2014-02-16 00:00:00.0]
     result = TestRepo.query!("SELECT $1::timestamp[]", [[datetime1, datetime2]])
     assert [[[{{2014, 1, 16}, _}, {{2014, 2, 16}, _}]]] = result.rows
   end

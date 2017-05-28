@@ -27,6 +27,11 @@ defmodule Ecto do
   the [getting started guide](http://hexdocs.pm/ecto/getting-started.html) and
   the accompanying sample application.
 
+  After exploring the documentation and guides, considering checking out the
+  ["What's new in Ecto 2.0"](http://pages.plataformatec.com.br/ebook-whats-new-in-ecto-2-0)
+  free ebook to learn more about many features in Ecto 2.0 such as `many_to_many`,
+  schemaless queries, concurrent testing and more.
+
   ## Repositories
 
   `Ecto.Repo` is a wrapper around the database. We can define a
@@ -159,14 +164,11 @@ defmodule Ecto do
       end
 
   The `changeset/2` function first invokes `Ecto.Changeset.cast/3` with
-  the struct, the parameters and a list of required and optional fields;
-  this returns a changeset. The parameter is a map with binary keys and
-  a value that will be cast based on the type defined on the schema.
+  the struct, the parameters and a list of allowed fields; this returns a changeset.
+  The parameters is a map with binary keys and values that will be cast based
+  on the type defined on the schema.
 
-  Any parameter that was not explicitly listed in the required or
-  optional fields list will be ignored. Furthermore, if a field is given
-  as required but it is not in the parameter map nor in the struct,
-  it will be marked with an error and the changeset is deemed invalid.
+  Any parameter that was not explicitly listed in the fields list will be ignored.
 
   After casting, the changeset is given to many `Ecto.Changeset.validate_*/2`
   functions that validate only the **changed fields**. In other words:
@@ -176,7 +178,7 @@ defmodule Ecto do
 
   Once a changeset is built, it can be given to functions like `insert` and
   `update` in the repository that will return an `:ok` or `:error` tuple:
-  
+
       case Repo.update(changeset) do
         {:ok, user} ->
           # user updated
@@ -475,16 +477,24 @@ defmodule Ecto do
   post:
 
       post = Repo.get Post, 1
-      Repo.all assoc(post, :comments)
+      Repo.all Ecto.assoc(post, :comments)
 
   `assoc/2` can also receive a list of posts, as long as the posts are
   not empty:
 
       posts = Repo.all from p in Post, where: is_nil(p.published_at)
-      Repo.all assoc(posts, :comments)
+      Repo.all Ecto.assoc(posts, :comments)
+
+  This function can also be used to dynamically load through associations
+  by giving it a list. For example, to get all authors for all comments for
+  the given posts, do:
+
+      posts = Repo.all from p in Post, where: is_nil(p.published_at)
+      Repo.all Ecto.assoc(posts, [:comments, :author])
 
   """
-  def assoc(struct_or_structs, assoc) do
+  def assoc(struct_or_structs, assocs) do
+    [assoc | assocs] = List.wrap(assocs)
     structs = List.wrap(struct_or_structs)
 
     if structs == [] do
@@ -501,7 +511,7 @@ defmodule Ecto do
         key = Map.fetch!(struct, owner_key),
         do: key)
 
-    assoc.__struct__.assoc_query(assoc, nil, values)
+    Ecto.Association.assoc_query(assoc, assocs, nil, values)
   end
 
   @doc """

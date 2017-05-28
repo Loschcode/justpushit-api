@@ -65,13 +65,13 @@ defmodule Ecto.Query.Builder do
 
   def escape({:fragment, _, [{:^, _, [var]} = _expr]}, _type, params, _vars, _env) do
     expr = quote do
-      Ecto.Query.Builder.runtime_validate!(unquote(var))
+      Ecto.Query.Builder.keyword!(unquote(var))
     end
     {{:{}, [], [:fragment, [], [expr]]}, params}
   end
 
-  def escape({:fragment, _, [query|frags]}, _type, params, vars, env) when is_binary(query) do
-    pieces = split_binary(query)
+  def escape({:fragment, _, [query|frags]}, _type, params, vars, env) do
+    pieces = expand_and_split_binary(query, env)
 
     if length(pieces) != length(frags) + 1 do
       error! "fragment(...) expects extra arguments in the same amount of question marks in string"
@@ -81,20 +81,15 @@ defmodule Ecto.Query.Builder do
     {{:{}, [], [:fragment, [], merge_fragments(pieces, frags)]}, params}
   end
 
-  def escape({:fragment, _, [query | _]}, _type, _params, _vars, _env) do
-    error! "fragment(...) expects the first argument to be a string for SQL fragments, " <>
-           "a keyword list, or an interpolated value, got: `#{Macro.to_string(query)}`"
-  end
-
   # interval
 
   def escape({:from_now, meta, [count, interval]}, type, params, vars, env) do
-    utc = quote do: ^Ecto.DateTime.utc
+    utc = quote do: ^DateTime.utc_now
     escape({:datetime_add, meta, [utc, count, interval]}, type, params, vars, env)
   end
 
   def escape({:ago, meta, [count, interval]}, type, params, vars, env) do
-    utc = quote do: ^Ecto.DateTime.utc
+    utc = quote do: ^DateTime.utc_now
     count =
       case count do
         {:^, meta, [value]} ->
@@ -107,15 +102,17 @@ defmodule Ecto.Query.Builder do
   end
 
   def escape({:datetime_add, _, [datetime, count, interval]} = expr, type, params, vars, env) do
-    assert_type!(expr, type, :datetime)
-    {datetime, params} = escape(datetime, :datetime, params, vars, env)
+    assert_type!(expr, type, :naive_datetime)
+    # TODO: use escape once support for Ecto.DateTime is removed
+    {datetime, params} = escape_datetime(datetime, params, vars, env)
     {count, interval, params} = escape_interval(count, interval, params, vars, env)
     {{:{}, [], [:datetime_add, [], [datetime, count, interval]]}, params}
   end
 
   def escape({:date_add, _, [date, count, interval]} = expr, type, params, vars, env) do
     assert_type!(expr, type, :date)
-    {date, params} = escape(date, :date, params, vars, env)
+    # TODO: use escape once support for Ecto.Date is removed
+    {date, params} = escape_date(date, params, vars, env)
     {count, interval, params} = escape_interval(count, interval, params, vars, env)
     {{:{}, [], [:date_add, [], [date, count, interval]]}, params}
   end
@@ -164,7 +161,7 @@ defmodule Ecto.Query.Builder do
     assert_type!(expr, type, :boolean)
 
     if is_nil(left) or is_nil(right) do
-      error! "comparison with nil is forbidden as it always evaluates to false. " <>
+      error! "comparison with nil is forbidden as it is unsafe. " <>
              "If you want to check if a value is nil, use is_nil/1 instead"
     end
 
@@ -173,7 +170,7 @@ defmodule Ecto.Query.Builder do
 
     {left,  params} = escape(left, ltype, params, vars, env)
     {right, params} = escape(right, rtype, params, vars, env)
-    {{:{}, [], [comp_op, [], [left, right]]}, params}
+    {{:{}, [], [comp_op, [], [left, right]]}, params |> wrap_nil(left) |> wrap_nil(right)}
   end
 
   # in operator
@@ -242,20 +239,35 @@ defmodule Ecto.Query.Builder do
     error! "`#{Macro.to_string(other)}` is not a valid query expression"
   end
 
-  def runtime_validate!(kw) do
-    unless Keyword.keyword?(kw) do
-      raise ArgumentError, "to prevent sql injection, only a keyword list may be interpolated " <>
-                           "as the first argument to `fragment/1` with the `^` operator, got `#{inspect kw}`"
-    end
-
-    kw
+  defp wrap_nil(params, {:{}, _, [:^, _, [ix]]}) do
+    Map.update!(params, ix, fn {val, type} ->
+      quote do
+        {Ecto.Query.Builder.not_nil!(unquote(val)), unquote(type)}
+      end
+    end)
+  end
+  defp wrap_nil(params, _other) do
+    params
   end
 
-  defp split_binary(query), do: split_binary(query, "")
-  defp split_binary(<<>>, consumed), do: [consumed]
-  defp split_binary(<<??, rest :: binary >>, consumed), do: [consumed | split_binary(rest, "")]
-  defp split_binary(<<?\\, ??, rest :: binary >>, consumed), do: split_binary(rest, consumed <> <<??>>)
-  defp split_binary(<<first :: utf8, rest :: binary>>, consumed), do: split_binary(rest, consumed <> <<first>>)
+  defp expand_and_split_binary(query, env) do
+    case Macro.expand(query, env) do
+      binary when is_binary(binary) ->
+        split_binary(binary, "")
+      _ ->
+        error! "fragment(...) expects the first argument to be a string for SQL fragments, " <>
+               "a keyword list, or an interpolated value, got: `#{Macro.to_string(query)}`"
+    end
+  end
+
+  defp split_binary(<<>>, consumed),
+    do: [consumed]
+  defp split_binary(<<??, rest :: binary >>, consumed),
+    do: [consumed | split_binary(rest, "")]
+  defp split_binary(<<?\\, ??, rest :: binary >>, consumed),
+    do: split_binary(rest, consumed <> <<??>>)
+  defp split_binary(<<first :: utf8, rest :: binary>>, consumed),
+    do: split_binary(rest, consumed <> <<first :: utf8>>)
 
   defp escape_call({name, _, args}, type, params, vars, env) do
     {args, params} = Enum.map_reduce(args, params, &escape(&1, type, &2, vars, env))
@@ -294,6 +306,22 @@ defmodule Ecto.Query.Builder do
 
   defp escape_fragment({key, _expr}, _type, _params, _vars, _env) do
     error! "fragment(...) with keywords accepts only atoms as keys, got `#{Macro.to_string(key)}`"
+  end
+
+  defp escape_datetime({:^, meta, [expr]}, params, vars, env) do
+    expr = quote do: Ecto.Query.Builder.cast_datetime!(unquote(expr))
+    escape({:^, meta, [expr]}, :naive_datetime, params, vars, env)
+  end
+  defp escape_datetime(expr, params, vars, env) do
+    escape(expr, :naive_datetime, params, vars, env)
+  end
+
+  defp escape_date({:^, meta, [expr]}, params, vars, env) do
+    expr = quote do: Ecto.Query.Builder.cast_date!(unquote(expr))
+    escape({:^, meta, [expr]}, :date, params, vars, env)
+  end
+  defp escape_date(expr, params, vars, env) do
+    escape(expr, :date, params, vars, env)
   end
 
   defp merge_fragments([h1|t1], [h2|t2]),
@@ -386,34 +414,50 @@ defmodule Ecto.Query.Builder do
 
   ## Examples
 
-      iex> escape_binding(quote do: [x, y, z])
-      [x: 0, y: 1, z: 2]
+      iex> escape_binding(%Ecto.Query{}, quote do: [x, y, z])
+      {%Ecto.Query{}, [x: 0, y: 1, z: 2]}
 
-      iex> escape_binding(quote do: [x: 0, z: 2])
-      [x: 0, z: 2]
+      iex> escape_binding(%Ecto.Query{}, quote do: [x: 0, z: 2])
+      {%Ecto.Query{}, [x: 0, z: 2]}
 
-      iex> escape_binding(quote do: [x, y, x])
+      iex> escape_binding(%Ecto.Query{}, quote do: [x, y, x])
       ** (Ecto.Query.CompileError) variable `x` is bound twice
 
-      iex> escape_binding(quote do: [a, b, :foo])
+      iex> escape_binding(%Ecto.Query{}, quote do: [a, b, :foo])
       ** (Ecto.Query.CompileError) binding list should contain only variables, got: :foo
 
   """
-  @spec escape_binding(list) :: Keyword.t
-  def escape_binding(binding) when is_list(binding) do
-    vars       = binding |> Enum.with_index |> Enum.map(&escape_bind(&1))
-    bound_vars = vars |> Keyword.keys |> Enum.filter(&(&1 != :_))
-    dup_vars   = bound_vars -- Enum.uniq(bound_vars)
-
-    unless dup_vars == [] do
-      error! "variable `#{hd dup_vars}` is bound twice"
+  @spec escape_binding(Macro.t | Ecto.Query.t, list) :: {Macro.t | Ecto.Query.t, Keyword.t}
+  def escape_binding(query, binding) when is_list(binding) do
+    vars = binding |> Enum.with_index |> Enum.map(&escape_bind(&1))
+    assert_no_dup_binding!(vars)
+    case Enum.split_while(vars, & elem(&1, 0) != :...) do
+      {vars, []} ->
+        {query, vars}
+      {vars, [_ | tail]} ->
+        query =
+          quote do
+            query = Ecto.Queryable.to_query(unquote(query))
+            escape_count = Ecto.Query.Builder.count_binds(query)
+            query
+          end
+        tail =
+          tail
+          |> Enum.with_index(-length(tail))
+          |> Enum.map(fn {{k, _}, count} -> {k, quote(do: escape_count + unquote(count))} end)
+        {query, vars ++ tail}
     end
-
-    vars
+  end
+  def escape_binding(_query, bind) do
+    error! "binding should be list of variables, got: #{Macro.to_string(bind)}"
   end
 
-  def escape_binding(bind) do
-    error! "binding should be list of variables, got: #{Macro.to_string(bind)}"
+  defp assert_no_dup_binding!(vars) do
+    bound_vars = vars |> Keyword.keys |> Enum.filter(& &1 != :_)
+    case bound_vars -- Enum.uniq(bound_vars) do
+      []  -> :ok
+      dup -> error! "variable `#{hd dup}` is bound twice"
+    end
   end
 
   defp escape_bind({{var, _} = tuple, _}) when is_atom(var),
@@ -467,6 +511,17 @@ defmodule Ecto.Query.Builder do
     do: error!("expected atom in field/2, got: `#{inspect other}`")
 
   @doc """
+  Called by escaper at runtime to verify that a value is not nil.
+  """
+  def not_nil!(nil) do
+    raise ArgumentError, "comparison with nil is forbidden as it is unsafe. " <>
+                         "If you want to check if a value is nil, use is_nil/1 instead"
+  end
+  def not_nil!(not_nil) do
+    not_nil
+  end
+
+  @doc """
   Checks if the field is a valid interval at compilation time or
   delegate the check to runtime for interpolation.
   """
@@ -476,6 +531,18 @@ defmodule Ecto.Query.Builder do
     do: interval!(other)
 
   @doc """
+  Called by escaper at runtime to verify keywords.
+  """
+  def keyword!(kw) do
+    unless Keyword.keyword?(kw) do
+      raise ArgumentError, "to prevent sql injection, only a keyword list may be interpolated " <>
+                           "as the first argument to `fragment/1` with the `^` operator, got `#{inspect kw}`"
+    end
+
+    kw
+  end
+
+  @doc """
   Called by escaper at runtime to verify that value is an atom.
   """
   @interval ~w(year month week day hour minute second millisecond microsecond)
@@ -483,6 +550,26 @@ defmodule Ecto.Query.Builder do
     do: interval
   def interval!(other),
     do: error!("invalid interval: `#{inspect other}` (expected one of #{Enum.join(@interval, ", ")})")
+
+  @doc """
+  Called by escaper at runtime to cast Ecto.DateTime to :naive_datetime.
+  """
+  def cast_datetime!(%Ecto.DateTime{year: year, month: month, day: day, hour: hour, min: min, sec: sec, usec: usec}) do
+    {:ok, value} = NaiveDateTime.new(year, month, day, hour, min, sec, {usec, 6})
+    value
+  end
+  def cast_datetime!(value),
+    do: value
+
+  @doc """
+  Called by escaper at runtime to cast Ecto.Date to :date.
+  """
+  def cast_date!(%Ecto.Date{year: year, month: month, day: day}) do
+    {:ok, value} = Date.new(year, month, day)
+    value
+  end
+  def cast_date!(value),
+    do: value
 
   @doc """
   Negates the given number.
@@ -517,7 +604,7 @@ defmodule Ecto.Query.Builder do
     do: {find_var!(var, vars), code}
 
   # Interval
-  def quoted_type({:datetime_add, _, [_, _, __]}, _vars), do: :datetime
+  def quoted_type({:datetime_add, _, [_, _, __]}, _vars), do: :naive_datetime
   def quoted_type({:date_add, _, [_, _, __]}, _vars), do: :date
 
   # Tagged
@@ -543,7 +630,8 @@ defmodule Ecto.Query.Builder do
   # Aggregates
   def quoted_type({:count, _, [_, _]}, _vars), do: :integer
   def quoted_type({:count, _, [_]}, _vars), do: :integer
-  def quoted_type({agg, _, [expr]}, vars) when agg in [:avg, :max, :min, :sum] do
+  def quoted_type({agg, _, [_]}, _vars) when agg in [:avg, :sum], do: :any # TODO: Support the number type
+  def quoted_type({agg, _, [expr]}, vars) when agg in [:max, :min, :sum] do
     quoted_type(expr, vars)
   end
 
@@ -609,15 +697,15 @@ defmodule Ecto.Query.Builder do
   For this reason, the apply function should be ready to handle
   arguments in both escaped and unescaped form.
 
-  For example, take into account the `Builder.Select`:
+  For example, take into account the `Builder.OrderBy`:
 
       select = %Ecto.Query.QueryExpr{expr: expr, file: env.file, line: env.line}
-      Builder.apply_query(query, __MODULE__, [select], env)
+      Builder.apply_query(query, __MODULE__, [order_by], env)
 
   `expr` is already an escaped expression and we must not escape
   it again. However, it is wrapped in an Ecto.Query.QueryExpr,
   which must be escaped! Furthermore, the `apply/2` function
-  in `Builder.Select` very likely will inject the QueryExpr inside
+  in `Builder.OrderBy` very likely will inject the QueryExpr inside
   Query, which again, is a mixture of escaped and unescaped expressions.
 
   That said, you need to obey the following rules:
@@ -640,7 +728,10 @@ defmodule Ecto.Query.Builder do
       %Query{} = unescaped ->
         apply(module, :apply, [unescaped|args]) |> escape_query
       _ ->
-        quote do: unquote(module).apply(unquote_splicing([query|args]))
+        quote do
+          query = unquote(query) # Unquote the query for any binding variable
+          unquote(module).apply(query, unquote_splicing(args))
+        end
     end
   end
 
@@ -648,7 +739,6 @@ defmodule Ecto.Query.Builder do
   defp unescape_query({:%, _, [Query, {:%{}, _, list}]}) do
     struct(Query, list)
   end
-
   defp unescape_query({:%{}, _, list} = ast) do
     if List.keyfind(list, :__struct__, 0) == {:__struct__, Query} do
       Enum.into(list, %{})
@@ -656,7 +746,6 @@ defmodule Ecto.Query.Builder do
       ast
     end
   end
-
   defp unescape_query(other) do
     other
   end

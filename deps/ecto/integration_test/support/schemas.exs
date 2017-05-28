@@ -8,6 +8,7 @@ defmodule Ecto.Integration.Schema do
         raise ":primary_key_type not set in :ecto application"
       @primary_key {:id, type, autogenerate: true}
       @foreign_key_type type
+      @timestamps_opts [usec: false]
     end
   end
 end
@@ -39,17 +40,16 @@ defmodule Ecto.Integration.Post do
     field :uuid, Ecto.UUID, autogenerate: true
     field :meta, :map
     field :links, {:map, :string}
-    field :posted, Ecto.Date
+    field :posted, :date
     has_many :comments, Ecto.Integration.Comment, on_delete: :delete_all, on_replace: :delete
     has_one :permalink, Ecto.Integration.Permalink, on_delete: :delete_all, on_replace: :delete
     has_many :comments_authors, through: [:comments, :author]
     belongs_to :author, Ecto.Integration.User
     many_to_many :users, Ecto.Integration.User,
       join_through: "posts_users", on_delete: :delete_all, on_replace: :delete
-    many_to_many :customs, Ecto.Integration.Custom,
-      join_through: "posts_customs", join_keys: [post_id: :uuid, custom_id: :bid],
-      on_delete: :delete_all, on_replace: :delete
     many_to_many :unique_users, Ecto.Integration.User,
+      join_through: "posts_users", unique: true
+    many_to_many :constraint_users, Ecto.Integration.User,
       join_through: Ecto.Integration.PostUserCompositePk
     has_many :users_comments, through: [:users, :comments]
     has_many :comments_authors_permalinks, through: [:comments_authors, :permalink]
@@ -96,6 +96,10 @@ defmodule Ecto.Integration.Comment do
     belongs_to :author, Ecto.Integration.User
     has_one :post_permalink, through: [:post, :permalink]
   end
+
+  def changeset(schema, params) do
+    Ecto.Changeset.cast(schema, params, [:text])
+  end
 end
 
 defmodule Ecto.Integration.Permalink do
@@ -136,7 +140,7 @@ defmodule Ecto.Integration.User do
   @moduledoc """
   This module is used to test:
 
-    * Timestamps
+    * UTC Timestamps
     * Relationships
     * Dependent callbacks
 
@@ -151,7 +155,7 @@ defmodule Ecto.Integration.User do
     belongs_to :custom, Ecto.Integration.Custom, references: :bid, type: :binary_id
     many_to_many :schema_posts, Ecto.Integration.Post, join_through: Ecto.Integration.PostUser
     many_to_many :unique_posts, Ecto.Integration.Post, join_through: Ecto.Integration.PostUserCompositePk
-    timestamps()
+    timestamps(type: :utc_datetime)
   end
 end
 
@@ -169,6 +173,9 @@ defmodule Ecto.Integration.Custom do
   @primary_key {:bid, :binary_id, autogenerate: true}
   schema "customs" do
     field :uuid, Ecto.UUID
+    many_to_many :customs, Ecto.Integration.Custom,
+      join_through: "customs_customs", join_keys: [custom_id1: :bid, custom_id2: :bid],
+      on_delete: :delete_all, on_replace: :delete
   end
 end
 
@@ -215,7 +222,7 @@ defmodule Ecto.Integration.Item do
 
   embedded_schema do
     field :price, :integer
-    field :valid_at, Ecto.Date
+    field :valid_at, :date
   end
 end
 

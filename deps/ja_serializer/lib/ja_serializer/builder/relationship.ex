@@ -1,7 +1,7 @@
 defmodule JaSerializer.Builder.Relationship do
   @moduledoc false
 
-  alias JaSerializer.Builder.Channel
+  alias JaSerializer.Builder.Link
   alias JaSerializer.Builder.ResourceIdentifier
 
   defstruct [:name, :links, :data, :meta]
@@ -22,7 +22,7 @@ defmodule JaSerializer.Builder.Relationship do
 
   defp add_links(relation, definition, context) do
     definition.links
-      |> Enum.map(fn {key, path} -> Channel.build(context, key, path) end)
+      |> Enum.map(fn {key, path} -> Link.build(context, key, path) end)
       |> case do
         []   ->  relation
         links -> Map.put(relation, :links, links)

@@ -37,7 +37,7 @@ defmodule Plug.Router.Utils do
       iex> Plug.Router.Utils.build_host_match("foo.com")
       "foo.com"
 
-      iex> Plug.Router.Utils.build_host_match("api.") |> Macro.to_string
+      iex> "api." |> Plug.Router.Utils.build_host_match() |> Macro.to_string()
       "\"api.\" <> _"
 
   """
@@ -67,11 +67,28 @@ defmodule Plug.Router.Utils do
   end
 
   @doc """
+  Builds a list of path param names and var match pairs that can bind
+  to dynamic path segment values. Excludes params with underscores;
+  otherwise, the compiler will warn about used underscored variables
+  when they are unquoted in the macro.
+
+  ## Examples
+
+      iex> Plug.Router.Utils.build_path_params_match([:id])
+      [{"id", {:id, [], nil}}]
+  """
+  def build_path_params_match(vars) do
+    vars
+    |> Enum.map(&{Atom.to_string(&1), Macro.var(&1, nil)})
+    |> Enum.reject(&match?({"_" <> _var, _macro}, &1))
+  end
+
+  @doc """
   Forwards requests to another Plug at a new path.
   """
   def forward(%Plug.Conn{path_info: path, script_name: script} = conn, new_path, target, opts) do
     {base, split_path} = Enum.split(path, length(path) - length(new_path))
-    conn = %{conn | path_info: split_path, script_name: script ++ base} |> target.call(opts)
+    conn = target.call(%{conn | path_info: split_path, script_name: script ++ base}, opts)
     %{conn | path_info: path, script_name: script}
   end
 

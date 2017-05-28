@@ -1,6 +1,7 @@
 defmodule Gettext.PO do
   @moduledoc """
-  This module provides facilities for working with `.po` files (mainly parsing).
+  This module provides facilities for working with PO (`.po`) and POT (`.pot`)
+  files (mainly parsing).
   """
 
   alias Gettext.PO
@@ -23,7 +24,7 @@ defmodule Gettext.PO do
     top_of_the_file_comments: [binary],
     headers: [binary],
     translations: [translation],
-    file: Path.t,
+    file: nil | Path.t,
   }
 
   @wrapping_column 80
@@ -113,7 +114,7 @@ defmodule Gettext.PO do
   ## Examples
 
       Gettext.PO.parse_file "translations.po"
-      #=> {:ok, [%Translation{msgid: "foo", msgstr: "bar"}]}
+      #=> {:ok, [%Gettext.PO.Translation{msgid: "foo", msgstr: "bar"}]}
 
       Gettext.PO.parse_file "nonexistent"
       #=> {:error, :enoent}
@@ -199,11 +200,11 @@ defmodule Gettext.PO do
      dump_translations(ts)]
   end
 
-  def dump_top_comments(top_comments) when is_list(top_comments) do
+  defp dump_top_comments(top_comments) when is_list(top_comments) do
     Enum.map(top_comments, &[&1, ?\n])
   end
 
-  def dump_headers([]) do
+  defp dump_headers([]) do
     []
   end
 
@@ -211,14 +212,14 @@ defmodule Gettext.PO do
   #
   #   msgid ""
   #   msgstr ""
-  #     "Header: foo\n"
-  def dump_headers([first | _] = headers) when first != "" do
+  #   "Header: foo\n"
+  defp dump_headers([first | _] = headers) when first != "" do
     dump_headers(["" | headers])
   end
 
-  def dump_headers(headers) do
+  defp dump_headers(headers) do
     [~s(msgid ""\n),
-      dump_kw_and_strings("msgstr", headers, 0)]
+      dump_kw_and_strings("msgstr", headers)]
   end
 
   defp dump_translations(translations) do
@@ -272,12 +273,15 @@ defmodule Gettext.PO do
   end
 
   defp dump_flags(flags) do
-    flags =
-      flags
-      |> Enum.sort
-      |> Enum.map(&[?\s, &1])
-
-    if flags == [], do: [], else: [?#, ?,, flags, ?\n]
+    if MapSet.size(flags) == 0 do
+      ""
+    else
+      flags =
+        flags
+        |> Enum.sort
+        |> Enum.map(&[?\s, &1])
+      ["#,", flags, ?\n]
+    end
   end
 
   defp dump_plural_msgstr(msgstr) do
@@ -286,14 +290,10 @@ defmodule Gettext.PO do
     end
   end
 
-  defp dump_kw_and_strings(keyword, [first | rest], indentation \\ 2) do
+  defp dump_kw_and_strings(keyword, [first | rest]) do
     first = ~s[#{keyword} "#{escape(first)}"\n]
-    rest  = Enum.map rest, &indent_line([?", escape(&1), ?", ?\n], indentation)
-    [first, rest]
-  end
-
-  defp indent_line(str, indentation, with \\ " ") do
-    [String.duplicate(with, indentation), str]
+    rest = Enum.map(rest, &[?", escape(&1), ?", ?\n])
+    [first | rest]
   end
 
   defp escape(str) do

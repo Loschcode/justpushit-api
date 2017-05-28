@@ -3,12 +3,12 @@ defmodule JOSE.Mixfile do
 
   def project do
     [app: :jose,
-     version: "1.8.0",
+     version: "1.8.4",
      elixir: "~> 1.0",
-     erlc_options: erlc_options,
+     erlc_options: erlc_options(),
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
-     deps: deps,
+     deps: deps(),
      name: "JOSE",
      source_url: "https://github.com/potatosalad/erlang-jose",
      docs: fn ->
@@ -16,8 +16,8 @@ defmodule JOSE.Mixfile do
        [source_ref: ref, main: "JOSE", extras: ["README.md", "CHANGELOG.md",
         "examples/KEY-GENERATION.md", "ALGORITHMS.md"]]
      end,
-     description: description,
-     package: package]
+     description: description(),
+     package: package()]
   end
 
   def application do
@@ -28,14 +28,15 @@ defmodule JOSE.Mixfile do
   defp deps do
     [{:base64url, "~> 0.0.1"},
      {:cutkey, github: "potatosalad/cutkey", only: [:dev, :test]},
-     {:jsone, "~> 1.2", only: [:dev, :test]},
+     {:jsone, "~> 1.4", only: [:dev, :test]},
      {:jsx, "~> 2.8", only: [:dev, :test]},
      # {:keccakf1600, "~> 2.0.0", only: [:dev, :test]},
-     {:libdecaf, "~> 0.0.3", only: [:dev, :test]},
-     {:libsodium, "~> 0.0.8", only: [:dev, :test]},
-     {:poison, "~> 2.2", only: [:dev, :test]},
-     {:ex_doc, "~> 0.13", only: :docs},
-     {:earmark, "~> 1.0.1", only: :docs}]
+     {:libdecaf, "~> 0.0.4", only: [:dev, :test]},
+     {:libsodium, "~> 0.0.10", only: [:dev, :test]},
+     {:ojson, "~> 1.0", only: [:dev, :test]},
+     {:poison, "~> 3.1", only: [:dev, :test]},
+     {:ex_doc, "~> 0.15", only: :docs},
+     {:earmark, "~> 1.2", only: :docs}]
   end
 
   defp description do

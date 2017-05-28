@@ -94,25 +94,42 @@ if Code.ensure_loaded?(Phoenix.HTML) do
       end
     end
 
-    def input_type(changeset, field) do
-      type = Map.get(changeset.types, field, :string)
-      type = if Ecto.Type.primitive?(type), do: type, else: type.type
-
-      case type do
-        :integer  -> :number_input
-        :float    -> :number_input
-        :decimal  -> :number_input
-        :boolean  -> :checkbox
-        :date     -> :date_select
-        :time     -> :time_select
-        :datetime -> :datetime_select
-        _         -> :text_input
+    def input_value(%{changes: changes, data: data}, %{params: params}, field, computed \\ nil) do
+      case Map.fetch(changes, field) do
+        {:ok, value} ->
+          value
+        :error ->
+          case Map.fetch(params, Atom.to_string(field)) do
+            {:ok, value} ->
+              value
+            :error when is_nil(computed) ->
+              Map.get(data, field)
+            :error ->
+              computed
+          end
       end
     end
 
-    def input_validations(changeset, field) do
-      [required: field in changeset.required] ++
-        for({key, validation} <- changeset.validations,
+    def input_type(%{types: types}, _, field) do
+      type = Map.get(types, field, :string)
+      type = if Ecto.Type.primitive?(type), do: type, else: type.type
+
+      case type do
+        :integer        -> :number_input
+        :float          -> :number_input
+        :decimal        -> :number_input
+        :boolean        -> :checkbox
+        :date           -> :date_select
+        :time           -> :time_select
+        :utc_datetime   -> :datetime_select
+        :naive_datetime -> :datetime_select
+        _               -> :text_input
+      end
+    end
+
+    def input_validations(%{required: required, validations: validations} = changeset, _, field) do
+      [required: field in required] ++
+        for({key, validation} <- validations,
             key == field,
             attr <- validation_to_attrs(validation, field, changeset),
             do: attr)
@@ -231,9 +248,12 @@ if Code.ensure_loaded?(Phoenix.HTML) do
     defp form_for_errors(%{action: nil}), do: []
     defp form_for_errors(%{errors: errors}), do: errors
 
-    defp form_for_hidden(%{__struct__: _} = data) do
-      # Since they are primary keys, we should ignore nil values.
-      for {k, v} <- Ecto.primary_key(data), v != nil, do: {k, v}
+    defp form_for_hidden(%{__struct__: module} = data) do
+      module.__schema__(:primary_key)
+    rescue
+      _ -> []
+    else
+      keys -> for k <- keys, v = Map.fetch!(data, k), do: {k, v}
     end
     defp form_for_hidden(_), do: []
 
@@ -251,9 +271,17 @@ if Code.ensure_loaded?(Phoenix.HTML) do
     defp form_for_method(_), do: "post"
   end
 
-  defimpl Phoenix.HTML.Safe, for: [Decimal, Ecto.Time, Ecto.Date, Ecto.DateTime] do
+  defimpl Phoenix.HTML.Safe, for: Decimal do
     def to_iodata(t) do
       @for.to_string(t)
+    end
+  end
+
+  if Code.ensure_loaded?(Ecto.DateTime) do
+    defimpl Phoenix.HTML.Safe, for: [Ecto.Time, Ecto.Date, Ecto.DateTime] do
+      def to_iodata(t) do
+        @for.to_string(t)
+      end
     end
   end
 end

@@ -3,14 +3,14 @@ defmodule JaSerializer.Builder.TopLevel do
 
   alias JaSerializer.Builder.ResourceObject
   alias JaSerializer.Builder.Included
-  alias JaSerializer.Builder.Channel
+  alias JaSerializer.Builder.Link
 
   defstruct [:data, :errors, :included, :meta, {:links, []}, :jsonapi]
 
   if Code.ensure_loaded?(Scrivener) do
     def build(context = %{data: %Scrivener.Page{} = page, opts: opts}) do
       # Build scrivener pagination links before we lose page object
-      links = JaSerializer.Builder.ScrivenerChannels.build(context)
+      links = JaSerializer.Builder.ScrivenerLinks.build(context)
       opts = Dict.update(opts, :page, links, &(Dict.merge(&1, links)))
 
       # Extract entries from page object
@@ -48,7 +48,7 @@ defmodule JaSerializer.Builder.TopLevel do
   defp pagination_links(page, context) do
     page
     |> Dict.take([:self, :first, :next, :prev, :last])
-    |> Enum.map(fn({type, url}) -> Channel.build(context, type, url) end)
+    |> Enum.map(fn({type, url}) -> Link.build(context, type, url) end)
   end
 
   defp normalize_opts(opts) do

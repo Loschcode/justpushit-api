@@ -24,7 +24,7 @@ defmodule Postgrex.Notifications do
   """
   @spec start_link(Keyword.t) :: {:ok, pid} | {:error, Postgrex.Error.t | term}
   def start_link(opts) do
-    Connection.start_link(__MODULE__, Postgrex.Utils.default_opts(opts))
+    Connection.start_link(__MODULE__, Postgrex.Utils.default_opts(opts), [name: opts[:name]])
   end
 
   @doc """
@@ -90,7 +90,7 @@ defmodule Postgrex.Notifications do
   end
 
   def connect(_, opts) do
-    case Protocol.connect([types: false] ++ opts) do
+    case Protocol.connect([types: nil] ++ opts) do
       {:ok, protocol} ->
         {:ok, %__MODULE__{protocol: protocol}}
       {:error, reason} ->
@@ -106,7 +106,7 @@ defmodule Postgrex.Notifications do
     # If this is the first listener for the given channel, we need to actually
     # issue the LISTEN query.
     if Map.size(s.listener_channels[channel]) == 1 do
-      listener_query("LISTEN #{channel}", {:ok, ref}, from, s)
+      listener_query("LISTEN \"#{channel}\"", {:ok, ref}, from, s)
     else
       {:reply, {:ok, ref}, s}
     end
@@ -125,7 +125,7 @@ defmodule Postgrex.Notifications do
         # UNLISTEN query.
         if Map.size(s.listener_channels[channel]) == 0 do
           s = update_in(s.listener_channels, &Map.delete(&1, channel))
-          listener_query("UNLISTEN #{channel}", :ok, from, s)
+          listener_query("UNLISTEN \"#{channel}\"", :ok, from, s)
         else
           {:reply, :ok, s}
         end
@@ -141,7 +141,7 @@ defmodule Postgrex.Notifications do
 
         if Map.size(s.listener_channels[channel]) == 0 do
           s = update_in(s.listener_channels, &Map.delete(&1, channel))
-          listener_query("UNLISTEN #{channel}", :ok, nil, s)
+          listener_query("UNLISTEN \"#{channel}\"", :ok, nil, s)
         else
           {:noreply, s}
         end
@@ -164,12 +164,11 @@ defmodule Postgrex.Notifications do
     %{protocol: protocol, listener_channels: channels, listeners: listeners} = s
     opts = [notify: &notify_listeners(channels, listeners, &1, &2)]
 
-    case Protocol.handle_simple(statement, opts, protocol) do
+    case Protocol.handle_listener(statement, opts, protocol) do
       {:ok, %Postgrex.Result{}, protocol} ->
         if from, do: Connection.reply(from, result)
         checkin(protocol, s)
       {error, reason, protocol} when error in [:error, :disconnect] ->
-        Connection.reply(from, reason)
         {:stop, reason, %{s | protocol: protocol}}
     end
   end

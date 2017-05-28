@@ -5,6 +5,7 @@
                         'Elixir.FakerElixir.Bank',
                         'Elixir.FakerElixir.Boolean',
                         'Elixir.FakerElixir.Color',
+                        'Elixir.FakerElixir.Commerce',
                         'Elixir.FakerElixir.Crypto',
                         'Elixir.FakerElixir.Currency',
                         'Elixir.FakerElixir.Date','Elixir.FakerElixir.File',
@@ -20,6 +21,6 @@
                         'Elixir.FakerElixir.Number',
                         'Elixir.FakerElixir.Phone','Elixir.OverflowError']},
               {registered,[]},
-              {vsn,"0.12.0"},
+              {vsn,"1.0.0"},
               {applications,[kernel,stdlib,elixir,logger]},
               {mod,{'Elixir.FakerElixir',[]}}]}.

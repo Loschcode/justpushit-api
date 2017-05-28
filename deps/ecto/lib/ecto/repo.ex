@@ -84,7 +84,7 @@ defmodule Ecto.Repo do
     quote bind_quoted: [opts: opts] do
       @behaviour Ecto.Repo
 
-      {otp_app, adapter, config} = Ecto.Repo.Supervisor.parse_config(__MODULE__, opts)
+      {otp_app, adapter, config} = Ecto.Repo.Supervisor.compile_config(__MODULE__, opts)
       @otp_app otp_app
       @adapter adapter
       @config  config
@@ -94,6 +94,8 @@ defmodule Ecto.Repo do
         Enum.reduce(config[:loggers] || [Ecto.LogEntry], quote(do: entry), fn
           mod, acc when is_atom(mod) ->
             quote do: unquote(mod).log(unquote(acc))
+          {Ecto.LogEntry, :log, [level]}, _acc when not level in [:error, :info, :warn, :debug] ->
+            raise ArgumentError, "the log level #{inspect level} is not supported in Ecto.LogEntry"
           {mod, fun, args}, acc ->
             quote do: unquote(mod).unquote(fun)(unquote(acc), unquote_splicing(args))
         end)
@@ -107,7 +109,8 @@ defmodule Ecto.Repo do
       end
 
       def config do
-        Ecto.Repo.Supervisor.config(__MODULE__, @otp_app, [])
+        {:ok, config} = Ecto.Repo.Supervisor.runtime_config(:dry_run, __MODULE__, @otp_app, [])
+        config
       end
 
       def start_link(opts \\ []) do
@@ -118,21 +121,27 @@ defmodule Ecto.Repo do
         Supervisor.stop(pid, :normal, timeout)
       end
 
-      def transaction(fun_or_multi, opts \\ []) do
-        Ecto.Repo.Queryable.transaction(@adapter, __MODULE__, fun_or_multi, opts)
-      end
+      if function_exported?(@adapter, :transaction, 3) do
+        def transaction(fun_or_multi, opts \\ []) do
+          Ecto.Repo.Queryable.transaction(@adapter, __MODULE__, fun_or_multi, opts)
+        end
 
-      def in_transaction? do
-        @adapter.in_transaction?(__MODULE__)
-      end
+        def in_transaction? do
+          @adapter.in_transaction?(__MODULE__)
+        end
 
-      @spec rollback(term) :: no_return
-      def rollback(value) do
-        @adapter.rollback(__MODULE__, value)
+        @spec rollback(term) :: no_return
+        def rollback(value) do
+          @adapter.rollback(__MODULE__, value)
+        end
       end
 
       def all(queryable, opts \\ []) do
         Ecto.Repo.Queryable.all(__MODULE__, @adapter, queryable, opts)
+      end
+
+      def stream(queryable, opts \\ []) do
+        Ecto.Repo.Queryable.stream(__MODULE__, @adapter, queryable, opts)
       end
 
       def get(queryable, id, opts \\ []) do
@@ -208,11 +217,19 @@ defmodule Ecto.Repo do
         Ecto.Repo.Schema.delete!(__MODULE__, @adapter, struct, opts)
       end
 
-      def preload(struct_or_structs, preloads, opts \\ []) do
+      def preload(struct_or_structs, preloads, opts \\ [])
+      def preload(nil, _, _), do: nil
+      def preload(struct_or_structs, preloads, opts) do
         Ecto.Repo.Preloader.preload(struct_or_structs, __MODULE__, preloads, opts)
+      end
+
+      def load(schema_or_types, data) do
+        Ecto.Repo.Schema.load(@adapter, schema_or_types, data)
       end
     end
   end
+
+  @optional_callbacks init: 2
 
   @doc """
   Returns the adapter tied to the repository.
@@ -229,23 +246,40 @@ defmodule Ecto.Repo do
 
   @doc """
   Returns the adapter configuration stored in the `:otp_app` environment.
+
+  Dynamic configuration is not reflected on this value.
   """
   @callback config() :: Keyword.t
 
   @doc """
   Starts any connection pooling or supervision and return `{:ok, pid}`
-  or just `:ok` if nothing needs to be done. 
+  or just `:ok` if nothing needs to be done.
 
   Returns `{:error, {:already_started, pid}}` if the repo is already
   started or `{:error, term}` in case anything else goes wrong.
 
   ## Options
+
   See the configuration in the moduledoc for options shared between adapters,
   for adapter-specific configuration see the adapter's documentation.
   """
   @callback start_link(opts :: Keyword.t) :: {:ok, pid} |
                             {:error, {:already_started, pid}} |
                             {:error, term}
+
+  @doc """
+  A callback executed when the repo starts or when configuration is read.
+
+  The first argument is the context the callback is being invoked. If it
+  is called because the Repo supervisor is starting, it will be `:supervisor`.
+  It will be `:dry_run` if it is called for reading configuration without
+  actually starting a process.
+
+  The second argument is the repository configuration as stored in the
+  application environment. It must return `{:ok, keyword}` with the updated
+  list of configuration or `:ignore` (only in the `:supervisor` case).
+  """
+  @callback init(:supervisor | :dry_run, config :: Keyword.t) :: {:ok, Keyword.t} | :ignore
 
   @doc """
   Shuts down the repository represented by the given pid.
@@ -406,6 +440,10 @@ defmodule Ecto.Repo do
 
   ## Options
 
+    * `:prefix` - The prefix to run the query on (such as the schema path
+      in Postgres or the database in MySQL). This overrides the prefix set
+      in the query.
+
   See the "Shared options" section at the module documentation.
 
   ## Example
@@ -416,6 +454,36 @@ defmodule Ecto.Repo do
       MyRepo.all(query)
   """
   @callback all(queryable :: Ecto.Query.t, opts :: Keyword.t) :: [Ecto.Schema.t] | no_return
+
+  @doc """
+  Returns a lazy enumerable that emits all entries from the data store
+  matching the given query. SQL adapters, such as Postgres and MySQL, can only
+  enumerate a stream inside a transaction.
+
+  May raise `Ecto.QueryError` if query validation fails.
+
+  ## Options
+
+    * `:prefix` - The prefix to run the query on (such as the schema path
+      in Postgres or the database in MySQL). This overrides the prefix set
+      in the query
+
+    * `:max_rows` - The number of rows to load from the database as we stream.
+      It is supported at least by Postgres and MySQL and defaults to 500.
+
+  See the "Shared options" section at the module documentation.
+
+  ## Example
+
+      # Fetch all post titles
+      query = from p in Post,
+           select: p.title
+      stream = MyRepo.stream(query)
+      MyRepo.transaction(fn() ->
+        Enum.to_list(stream)
+      end)
+  """
+  @callback stream(queryable :: Ecto.Query.t, opts :: Keyword.t) :: Enum.t
 
   @doc """
   Inserts all entries into the repository.
@@ -450,9 +518,53 @@ defmodule Ecto.Repo do
       fields, where a struct is still returned but only with the
       given fields. Or `false`, where nothing is returned (the default).
       This option is not supported by all databases.
+    * `:prefix` - The prefix to run the query on (such as the schema path
+      in Postgres or the database in MySQL).
+    * `:on_conflict` - It may be one of `:raise` (the default), `:nothing`,
+      `:replace_all`, a keyword list of update instructions or an `Ecto.Query`
+      query for updates. See the "Upserts" section for more information.
+    * `:conflict_target` - Which columns to verify for conflicts. If
+      none is specified, the conflict target is left up to the database
+      and is usually made of primary keys and/or unique/exclusion constraints.
 
   See the "Shared options" section at the module documentation for
   remaining options.
+
+  ## Examples
+
+      MyRepo.insert_all(Post, [[title: "My first post"], [title: "My second post"]])
+      MyRepo.insert_all(Post, [%{title: "My first post"}, %{title: "My second post"}])
+
+  ## Upserts
+
+  `insert_all` provides upserts (update or inserts) via the `:on_conflict`
+  option. The `:on_conflict` option supports the following values:
+
+    * `:raise` - raises if there is a conflicting primary key or unique index
+    * `:nothing` - ignores the error in case of conflicts
+    * `:replace_all` - replace all entries in the database by the one being
+      currently attempted
+    * a keyword list of update instructions - such as the one given to
+      `c:update_all/3`, for example: `[set: [title: "new title"]]`
+    * an `Ecto.Query` that will act as an `UPDATE` statement, such as the
+      one given to `c:update_all/3`
+
+  Upserts map to "ON CONFLICT" on databases like Postgres and "ON DUPLICATE KEY"
+  on databases such as MySQL.
+
+  ## Return values
+
+  By default, both Postgres and MySQL return the amount of entries
+  inserted on `insert_all`. However, when the `:on_conflict` option
+  is specified, Postgres will only return a row if it was affected
+  while MySQL returns at least the number of entries attempted.
+
+  For example, if `:on_conflict` is set to `:nothing`, Postgres will
+  return 0 if no new entry was added while MySQL will still return
+  the amount of entries attempted to be inserted, even if no entry
+  was added. Even worse, if `:on_conflict` is query, MySQL will return
+  the number of attempted entries plus the number of entries modified
+  by the UPDATE query.
   """
   @callback insert_all(schema_or_source :: binary | {binary, Ecto.Schema.t} | Ecto.Schema.t,
                        entries :: [map | Keyword.t], opts :: Keyword.t) :: {integer, nil | [term]} | no_return
@@ -478,6 +590,9 @@ defmodule Ecto.Repo do
       fields, where a struct is still returned but only with the
       given fields. Or `false`, where nothing is returned (the default).
       This option is not supported by all databases.
+    * `:prefix` - The prefix to run the query on (such as the schema path
+      in Postgres or the database in MySQL). This overrides the prefix set
+      in the query.
 
   See the "Shared options" section at the module documentation for
   remaining options.
@@ -515,6 +630,9 @@ defmodule Ecto.Repo do
       fields, where a struct is still returned but only with the
       given fields. Or `false`, where nothing is returned (the default).
       This option is not supported by all databases.
+    * `:prefix` - The prefix to run the query on (such as the schema path
+      in Postgres or the database in MySQL). This overrides the prefix set
+      in the query.
 
   See the "Shared options" section at the module documentation for
   remaining options.
@@ -544,14 +662,74 @@ defmodule Ecto.Repo do
 
   ## Options
 
+    * `:prefix` - The prefix to run the query on (such as the schema path
+      in Postgres or the database in MySQL). This overrides the prefix set
+      in the struct.
+    * `:on_conflict` - It may be one of `:raise` (the default), `:nothing`,
+      `:replace_all`, a keyword list of update instructions or an `Ecto.Query`
+      query for updates. See the "Upserts" section for more information.
+    * `:conflict_target` - Which columns to verify for conflicts. If
+      none is specified, the conflict target is left up to the database
+      and is usually made of primary keys and/or unique/exclusion constraints.
+
   See the "Shared options" section at the module documentation.
 
-  ## Example
+  ## Examples
+
+  A typical example is calling `MyRepo.insert/1` with a struct
+  and acting on the return value:
 
       case MyRepo.insert %Post{title: "Ecto is great"} do
         {:ok, struct}       -> # Inserted with success
         {:error, changeset} -> # Something went wrong
       end
+
+  ## Upserts
+
+  `insert_all` provides upserts (update or inserts) via the `:on_conflict`
+  option. The `:on_conflict` option supports the following values:
+
+    * `:raise` - raises if there is a conflicting primary key or unique index
+    * `:nothing` - ignores the error in case of conflicts
+    * `:replace_all` - replace all entries in the database by the one being
+      currently attempted
+    * a keyword list of update instructions - such as the one given to
+      `c:update_all/3`, for example: `[set: [title: "new title"]]`
+    * an `Ecto.Query` that will act as an `UPDATE` statement, such as the
+      one given to `c:update_all/3`
+
+  Upserts map to "ON CONFLICT" on databases like Postgres and "ON DUPLICATE KEY"
+  on databases such as MySQL.
+
+  As an example, imagine `:title` is marked as a unique column in
+  the database:
+
+      # Insert it once
+      {:ok, inserted} = MyRepo.insert(%Post{title: "this is unique"})
+
+      # Insert with the same title but do nothing on conflicts.
+      # Keep in mind that, although this returns :ok, the returned
+      # struct does not reflect the data in the database. For instance,
+      # in case of "on_conflict: :nothing", the returned post has no ID.
+      {:ok, ignored} = MyRepo.insert(%Post{title: "this is unique"}, on_conflict: :nothing)
+      assert ignored.id == nil
+
+      # Now let's insert with the same title but use a query to update
+      # a column on conflicts. Although this returns :ok and a struct with
+      # the existing ID for successful operations, the other columns may
+      # not necessarily reflect the data in the database. In fact, any
+      # operation done on `:on_conflict` won't be automatically mapped to
+      # the struct.
+
+      # In Postgres (it requires the conflict target for updates):
+      on_conflict = [set: [body: "updated"]]
+      {:ok, updated} = MyRepo.insert(%Post{title: "this is unique"},
+                                     on_conflict: on_conflict, conflict_target: :title)
+
+      # In MySQL (conflict target is not supported):
+      on_conflict = [set: [title: "updated"]]
+      {:ok, updated} = MyRepo.insert(%Post{id: inserted.id, title: "updated"},
+                                     on_conflict: on_conflict)
 
   """
   @callback insert(struct_or_changeset :: Ecto.Schema.t | Ecto.Changeset.t, opts :: Keyword.t) ::
@@ -561,7 +739,9 @@ defmodule Ecto.Repo do
   Updates a changeset using its primary key.
 
   A changeset is required as it is the only mechanism for
-  tracking dirty changes.
+  tracking dirty changes. Only the fields present in the `changes` part
+  of the changeset are sent to the database. Any other, in-memory
+  changes done to the schema are ignored.
 
   If the struct has no primary key, `Ecto.NoPrimaryKeyFieldError`
   will be raised.
@@ -579,6 +759,9 @@ defmodule Ecto.Repo do
       `update!/2` is a no-op. By setting this option to true, update
       callbacks will always be executed, even if there are no changes
       (including timestamps).
+    * `:prefix` - The prefix to run the query on (such as the schema path
+      in Postgres or the database in MySQL). This overrides the prefix set
+      in the struct.
 
   ## Example
 
@@ -609,6 +792,10 @@ defmodule Ecto.Repo do
 
   ## Options
 
+    * `:prefix` - The prefix to run the query on (such as the schema path
+      in Postgres or the database in MySQL). This overrides the prefix set
+      in the struct.
+
   See the "Shared options" section at the module documentation.
 
   ## Example
@@ -626,7 +813,7 @@ defmodule Ecto.Repo do
         {:error, changeset} -> # Something went wrong
       end
   """
-  @callback insert_or_update(changeset :: Ecto.Changeset.t, opts :: Keyword.t) ::
+  @callback insert_or_update(struct_or_changeset :: Ecto.Schema.t | Ecto.Changeset.t, opts :: Keyword.t) ::
             {:ok, Ecto.Schema.t} | {:error, Ecto.Changeset.t}
 
   @doc """
@@ -640,6 +827,10 @@ defmodule Ecto.Repo do
   or a known constraint error.
 
   ## Options
+
+    * `:prefix` - The prefix to run the query on (such as the schema path
+      in Postgres or the database in MySQL). This overrides the prefix set
+      in the struct.
 
   See the "Shared options" section at the module documentation.
 
@@ -671,7 +862,7 @@ defmodule Ecto.Repo do
   Same as `insert_or_update/2` but returns the struct or raises if the changeset
   is invalid.
   """
-  @callback insert_or_update!(changeset :: Ecto.Changeset.t, opts :: Keyword.t) ::
+  @callback insert_or_update!(struct_or_changeset :: Ecto.Schema.t | Ecto.Changeset.t, opts :: Keyword.t) ::
             Ecto.Schema.t | no_return
 
   @doc """
@@ -740,6 +931,7 @@ defmodule Ecto.Repo do
   """
   @callback transaction(fun_or_multi :: fun | Ecto.Multi.t, opts :: Keyword.t) ::
     {:ok, any} | {:error, any} | {:error, atom, any, %{atom => any}}
+  @optional_callbacks [transaction: 2]
 
   @doc """
   Returns true if the current process is inside a transaction.
@@ -755,6 +947,7 @@ defmodule Ecto.Repo do
 
   """
   @callback in_transaction?() :: boolean
+  @optional_callbacks [in_transaction?: 0]
 
   @doc """
   Rolls back the current transaction.
@@ -762,4 +955,46 @@ defmodule Ecto.Repo do
   The transaction will return the value given as `{:error, value}`.
   """
   @callback rollback(value :: any) :: no_return
+  @optional_callbacks [rollback: 1]
+
+  @doc """
+  Loads `data` into a struct or a map.
+
+  The first argument can be a schema, or a map (of types) and determines the return value:
+  a struct or a map, respectively.
+
+  The second argument `data` specifies fields and values that are to be loaded.
+  It can be a map, a keyword list, or a `{fields, values}` tuple.
+  Fields can be atoms or strings.
+
+  Fields that are not present in the schema (or `types` map) are ignored.
+  If any of the values has invalid type, an error is raised.
+
+  ## Examples
+
+      iex> MyRepo.load(User, %{name: "Alice", age: 25})
+      %User{name: "Alice", age: 25}
+
+      iex> MyRepo.load(User, [name: "Alice", age: 25])
+      %User{name: "Alice", age: 25}
+
+  `data` can also take form of `{fields, values}`:
+
+      iex> MyRepo.load(User, {[:name, :age], ["Alice", 25]})
+      %User{name: "Alice", age: 25, ...}
+
+  The first argument can also be a `types` map:
+
+      iex> types = %{name: :string, age: :integer}
+      iex> MyRepo.load(types, %{name: "Alice", age: 25})
+      %{name: "Alice", age: 25}
+
+  This function is especially useful when parsing raw query results:
+
+      iex> result = Ecto.Adapters.SQL.query!(MyRepo, "SELECT * FROM users", [])
+      iex> Enum.map(result.rows, &MyRepo.load(User, {result.columns, &1}))
+      [%User{...}, ...]
+
+  """
+  @callback load(Ecto.Schema.t | map(), map() | Keyword.t | {list, list}) :: Ecto.Schema.t | map()
 end

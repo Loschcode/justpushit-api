@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.org/elixir-ecto/ecto.svg?branch=master)](https://travis-ci.org/elixir-ecto/ecto)
 [![Inline docs](http://inch-ci.org/github/elixir-ecto/ecto.svg?branch=master&style=flat)](http://inch-ci.org/github/elixir-ecto/ecto)
+[![Ebert](https://ebertapp.io/github/elixir-ecto/ecto.svg)](https://ebertapp.io/github/elixir-ecto/ecto)
 
 Ecto is a domain specific language for writing queries and interacting with databases in Elixir. Here is an example:
 
@@ -14,7 +15,7 @@ config :my_app, Sample.Repo,
   database: "ecto_simple",
   username: "postgres",
   password: "postgres",
-  host: "localhost",
+  hostname: "localhost",
   port: "5432"
 
 # In your application code
@@ -58,6 +59,8 @@ end
 
 See the [getting started guide](http://hexdocs.pm/ecto/getting-started.html) and the [online documentation](http://hexdocs.pm/ecto).
 
+Also checkout the ["What's new in Ecto 2.0"](http://pages.plataformatec.com.br/ebook-whats-new-in-ecto-2-0) free ebook to learn more about many features in Ecto 2.0 such as `many_to_many`, schemaless queries, concurrent testing and more.
+
 ## Usage
 
 You need to add both Ecto and the database adapter as a dependency to your `mix.exs` file. The supported databases and their adapters are:
@@ -81,7 +84,7 @@ For example, if you want to use PostgreSQL, add to your `mix.exs` file:
 ```elixir
 defp deps do
   [{:postgrex, ">= 0.0.0"},
-   {:ecto, "~> 2.0.0"}]
+   {:ecto, "~> 2.1"}]
 end
 ```
 
@@ -134,7 +137,7 @@ $ mix test
 Besides the unit tests above, it is recommended to run the adapter integration tests too:
 
 ```
-# Run only PostgreSQL tests (version of PostgreSQL must be >= 9.4 to support jsonb)
+# Run only PostgreSQL tests (PostgreSQL >= 9.5 is preferred for testing all Postgres features)
 MIX_ENV=pg mix test
 
 # Run all tests (unit and all adapters)

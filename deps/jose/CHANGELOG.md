@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.8.4 (2017-05-18)
+
+* Enhancements
+  * Add support for reading and writing PEM files for Ed25519, Ed448, X25519, and X448 keys based on [draft-ietf-curdle-pkix](https://tools.ietf.org/html/draft-ietf-curdle-pkix).
+  * Add support for [ojson](https://github.com/potatosalad/erlang-ojson) adapter for encoding/decoding JSON.
+
+## 1.8.3 (2017-03-30)
+
+* Fixes
+  * Regression fix from 1.8.2 for OTP-17 (thanks to [@alexandrejbr](https://github.com/alexandrejbr), see [#35](https://github.com/potatosalad/erlang-jose/issues/35) and [#36](https://github.com/potatosalad/erlang-jose/pull/36))
+
+## 1.8.2 (2017-03-15)
+
+* Enhancements
+  * Add support for decoding firebase certificate public keys (thanks to [@noizu](https://github.com/noizu), see [#30](https://github.com/potatosalad/erlang-jose/issues/30))
+
+* Fixes
+  * Fix cross-platform issues with EC signatures (specifically S and R sizes, thanks to [@alexandrejbr](https://github.com/alexandrejbr), see [#32](https://github.com/potatosalad/erlang-jose/pull/32))
+  * Typo in documentation for `JOSE.encode/1` (thanks to [@DaveLampton](https://github.com/DaveLampton), see [#31](https://github.com/potatosalad/erlang-jose/issues/31))
+
+* Tests
+  * Tested against OTP 19.3, Elixir 1.4.x, and Poison 3.x
+
+## 1.8.1 (2017-02-02)
+
+* Fixes
+  * Parentheses to remove ambiguity on Elixir 1.4 [#26](https://github.com/potatosalad/erlang-jose/pull/26), thanks [@alexandrubagu](https://github.com/alexandrubagu)
+
 ## 1.8.0 (2016-08-08)
 
 * Enhancements

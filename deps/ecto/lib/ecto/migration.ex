@@ -8,7 +8,7 @@ defmodule Ecto.Migration do
 
   Here is an example:
 
-      defmodule MyRepo.Migrations.CreatePosts do
+      defmodule MyRepo.Migrations.AddWeatherTable do
         use Ecto.Migration
 
         def up do
@@ -18,7 +18,7 @@ defmodule Ecto.Migration do
             add :temp_hi, :integer
             add :prcp,    :float
 
-            timestamps
+            timestamps()
           end
         end
 
@@ -46,7 +46,7 @@ defmodule Ecto.Migration do
   `change/0` instead of `up/0` and `down/0`. For example, the
   migration above can be written as:
 
-      defmodule MyRepo.Migrations.CreatePosts do
+      defmodule MyRepo.Migrations.AddWeatherTable do
         use Ecto.Migration
 
         def change do
@@ -56,7 +56,7 @@ defmodule Ecto.Migration do
             add :temp_hi, :integer
             add :prcp,    :float
 
-            timestamps
+            timestamps()
           end
         end
       end
@@ -68,13 +68,17 @@ defmodule Ecto.Migration do
 
   The Ecto primitive types are mapped to the appropriate database
   type by the various database adapters. For example, `:string` is converted to
-  `:varchar`, `:datetime` to the underlying `:datetime` or `:timestamp` type,
-  `:binary` to `:bits` or `:blob`, and so on.
+  `:varchar`, `:binary` to `:bits` or `:blob`, and so on.
 
   Similarly, you can pass any field type supported by your database
   as long as it maps to an Ecto type. For instance, you can use `:text`,
   `:varchar` or `:char` in your migrations as `add :field_name, :text`.
   In your Ecto schema, they will all map to the same `:string` type.
+
+  Remember, atoms can containing arbitrary characters by enclosing in
+  double quotes the characters following the colon. So, if you want to use
+  field type with your database specific options, you can pass atoms containing
+  these options like `:"int unsigned"`, `:"time without time zone"`.
 
   ## Prefixes
 
@@ -86,17 +90,17 @@ defmodule Ecto.Migration do
   The prefix is specified in the table options:
 
       def up do
-        create table(:weather, prefix: :north_america) do
+        create table(:weather, prefix: "north_america") do
           add :city,    :string, size: 40
           add :temp_lo, :integer
           add :temp_hi, :integer
           add :prcp,    :float
           add :group_id, references(:groups)
 
-          timestamps
+          timestamps()
         end
 
-        create index(:weather, [:city], prefix: :north_america)
+        create index(:weather, [:city], prefix: "north_america")
       end
 
   Note: if using MySQL with a prefixed table, you must use the same prefix for the references since
@@ -130,6 +134,21 @@ defmodule Ecto.Migration do
   See the `index/3` function for more information on creating/dropping indexes
   concurrently.
 
+  ## Comments
+
+  Migrations where you create or alter a table support specifying table
+  and column comments, the same can be done when creating constraints
+  and indexes. At the moment there is support only for Postgres.
+
+      def up do
+        create index(:posts, [:name], comment: "Index Comment")
+        create constraint(:products, "price_must_be_positive", check: "price > 0", comment: "Index Comment")
+        create table(:weather, prefix: "north_america", comment: "Table Comment") do
+          add :city, :string, size: 40, comment: "Column Comment"
+          timestamps()
+        end
+      end
+
   ## Schema Migrations table
 
   Version numbers of migrations will be saved in `schema_migrations` table.
@@ -152,7 +171,9 @@ defmodule Ecto.Migration do
               unique: false,
               concurrently: false,
               using: nil,
-              where: nil
+              where: nil,
+              comment: nil,
+              options: nil
 
     @type t :: %__MODULE__{
       table: atom,
@@ -162,7 +183,9 @@ defmodule Ecto.Migration do
       unique: boolean,
       concurrently: boolean,
       using: atom | String.t,
-      where: atom | String.t
+      where: atom | String.t,
+      comment: String.t | nil,
+      options: String.t
     }
   end
 
@@ -172,8 +195,8 @@ defmodule Ecto.Migration do
 
     To define a table in a migration, see `Ecto.Migration.table/2`
     """
-    defstruct name: nil, prefix: nil, primary_key: true, engine: nil, options: nil
-    @type t :: %__MODULE__{name: atom, prefix: atom | nil, primary_key: boolean,
+    defstruct name: nil, prefix: nil, comment: nil, primary_key: true, engine: nil, options: nil
+    @type t :: %__MODULE__{name: atom, prefix: atom | nil, comment: String.t | nil, primary_key: boolean,
                            engine: atom, options: String.t}
   end
 
@@ -193,9 +216,9 @@ defmodule Ecto.Migration do
 
     To define a constraint in a migration, see `Ecto.Migration.constraint/3`
     """
-    defstruct name: nil, table: nil, check: nil, exclude: nil, prefix: nil
+    defstruct name: nil, table: nil, check: nil, exclude: nil, prefix: nil, comment: nil
     @type t :: %__MODULE__{name: atom, table: atom, prefix: atom | nil,
-                           check: String.t | nil, exclude: String.t | nil}
+                           check: String.t | nil, exclude: String.t | nil, comment: String.t | nil}
   end
 
   alias Ecto.Migration.Runner
@@ -229,12 +252,12 @@ defmodule Ecto.Migration do
         add :title, :string, default: "Untitled"
         add :body,  :text
 
-        timestamps
+        timestamps()
       end
 
   """
   defmacro create(object, do: block) do
-    do_create(object, :create, block)
+    expand_create(object, :create, block)
   end
 
   @doc """
@@ -244,10 +267,10 @@ defmodule Ecto.Migration do
   already exists.
   """
   defmacro create_if_not_exists(object, do: block) do
-    do_create(object, :create_if_not_exists, block)
+    expand_create(object, :create_if_not_exists, block)
   end
 
-  defp do_create(object, command, block) do
+  defp expand_create(object, command, block) do
     quote do
       table = %Table{} = unquote(object)
       Runner.start_command({unquote(command), Ecto.Migration.__prefix__(table)})
@@ -401,6 +424,7 @@ defmodule Ecto.Migration do
     * `:primary_key` - when false, does not generate primary key on table creation
     * `:engine` - customizes the table storage for supported databases. For MySQL,
       the default is InnoDB
+    * `:prefix` - the prefix for the table
     * `:options` - provide custom options that will be appended after generated
       statement, for example "WITH", "INHERITS" or "ON COMMIT" clauses
 
@@ -542,8 +566,8 @@ defmodule Ecto.Migration do
 
   This function also accepts Ecto primitive types as column types
   and they are normalized by the database adapter. For example,
-  `:string` is converted to `:varchar`, `:datetime` to the underlying
-  `:datetime` or `:timestamp` type, `:binary` to `:bits` or `:blob`, and so on.
+  `:string` is converted to `:varchar`, `:binary` to `:bits` or `:blob`,
+  and so on.
 
   However, the column type is not always the same as the type used in your
   schema. For example, a schema that has a `:string` field,
@@ -554,7 +578,7 @@ defmodule Ecto.Migration do
   To sum up, the column type may be either an Ecto primitive type,
   which is normalized in cases the database does not understand it,
   like `:string` or `:binary`, or a database type which is passed as is.
-  Custom Ecto types, like `Ecto.Datetime`, are not supported because
+  Custom Ecto types, like `Ecto.UUID`, are not supported because
   they are application level concern and may not always map to the
   database.
 
@@ -566,7 +590,7 @@ defmodule Ecto.Migration do
 
       alter table(:posts) do
         add :summary, :text # Database type
-        add :object,  :json
+        add :object,  :map  # Elixir type which is handled by the database
       end
 
   ## Options
@@ -581,7 +605,15 @@ defmodule Ecto.Migration do
     * `:scale` - the scale of a numeric type. Default is 0 scale
 
   """
-  def add(column, type, opts \\ []) when is_atom(column) do
+  def add(column, type, opts \\ [])
+
+  def add(column, :datetime, opts) when is_atom(column) do
+    IO.warn "the :datetime type in migrations is deprecated, " <>
+            "please use :utc_datetime or :naive_datetime instead"
+    add(column, :naive_datetime, opts)
+  end
+
+  def add(column, type, opts) when is_atom(column) do
     validate_type!(type)
     Runner.subcommand {:add, column, type, opts}
   end
@@ -616,7 +648,7 @@ defmodule Ecto.Migration do
   ## Examples
 
       create table(:posts) do
-        add :inserted_at, :datetime, default: fragment("now()")
+        add :inserted_at, :naive_datetime, default: fragment("now()")
       end
   """
   def fragment(expr) when is_binary(expr) do
@@ -626,23 +658,21 @@ defmodule Ecto.Migration do
   @doc """
   Adds `:inserted_at` and `:updated_at` timestamps columns.
 
-  Those columns are of `:datetime` or `:date` type,
-  and by default cannot be null.
-  `opts` can be given to customize the generated fields.
+  Those columns are of `:naive_datetime` type, and by default
+  cannot be null. `opts` can be given to customize the generated
+  fields.
 
   ## Options
 
     * `:inserted_at` -  the name of the column for insertion times, providing `false` disables column
     * `:updated_at` - the name of the column for update times, providing `false` disables column
-    * `:type` - column type, one of `:datetime` (default) or `:date`
+    * `:type` - column type, defaults to `:naive_datetime`
 
   """
   def timestamps(opts \\ []) do
     opts = Keyword.put_new(opts, :null, false)
 
-    {type, opts} = Keyword.pop(opts, :type, :datetime)
-    unless type in [:datetime, :date], do: raise ArgumentError, "unknown :type value: #{inspect type}"
-
+    {type, opts} = Keyword.pop(opts, :type, :naive_datetime)
     {inserted_at, opts} = Keyword.pop(opts, :inserted_at, :inserted_at)
     {updated_at, opts} = Keyword.pop(opts, :updated_at, :updated_at)
 
@@ -672,7 +702,15 @@ defmodule Ecto.Migration do
     * `:precision` - the precision for a numeric type. Default is no precision.
     * `:scale` - the scale of a numeric type. Default is 0 scale.
   """
-  def modify(column, type, opts \\ []) when is_atom(column) do
+  def modify(column, type, opts \\ [])
+
+  def modify(column, :datetime, opts) when is_atom(column) do
+    IO.warn "the :datetime type in migrations is deprecated, " <>
+            "please use :utc_datetime or :naive_datetime instead"
+    modify(column, :naive_datetime, opts)
+  end
+
+  def modify(column, type, opts) when is_atom(column) do
     Runner.subcommand {:modify, column, type, opts}
   end
 
@@ -708,12 +746,12 @@ defmodule Ecto.Migration do
       defaults to "#{table}_#{column}_fkey"
     * `:column` - The foreign key column, default is `:id`
     * `:type`   - The foreign key type, default is `:serial`
-    * `:on_delete` - What to perform if the entry is deleted.
-         May be `:nothing`, `:delete_all` or `:nilify_all`.
-         Defaults to `:nothing`.
-    * `:on_update` - What to perform if the entry is updated.
-         May be `:nothing`, `:update_all` or `:nilify_all`.
-         Defaults to `:nothing`.
+    * `:on_delete` - What to perform if the referenced entry
+       is deleted. May be `:nothing`, `:delete_all` or
+       `:nilify_all`. Defaults to `:nothing`.
+    * `:on_update` - What to perform if the referenced entry
+       is updated. May be `:nothing`, `:update_all` or
+       `:nilify_all`. Defaults to `:nothing`.
 
   """
   def references(table, opts \\ []) when is_atom(table) do
@@ -745,7 +783,7 @@ defmodule Ecto.Migration do
     * `:name` - The name of the constraint - required.
 
   """
-  def constraint(table, name, opts \\ [] ) do
+  def constraint(table, name, opts \\ []) do
     struct(%Constraint{table: table, name: name}, opts)
   end
 
@@ -774,6 +812,10 @@ defmodule Ecto.Migration do
     validate_type!(subtype)
   end
 
+  defp validate_type!({type, subtype}) when is_atom(type) and is_tuple(subtype) do
+    for t <- Tuple.to_list(subtype), do: validate_type!(t)
+  end
+
   defp validate_type!(%Reference{} = reference) do
     reference
   end
@@ -785,11 +827,11 @@ defmodule Ecto.Migration do
     cond do
       is_nil(prefix) ->
         %{index_or_table | prefix: runner_prefix}
-      is_nil(runner_prefix) or runner_prefix == prefix ->
+      is_nil(runner_prefix) or runner_prefix == to_string(prefix) ->
         index_or_table
       true ->
         raise Ecto.MigrationError,  message:
-          "the :prefix option `#{inspect prefix}` does match the migrator prefix `#{inspect runner_prefix}`"
+          "the :prefix option `#{prefix}` does match the migrator prefix `#{runner_prefix}`"
     end
   end
 end

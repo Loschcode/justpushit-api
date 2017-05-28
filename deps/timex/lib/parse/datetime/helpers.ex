@@ -44,13 +44,32 @@ defmodule Timex.Parse.DateTime.Helpers do
     end
   end
 
-  def to_sec_ms(sec, fraction) do
+  def to_sec_ms(fraction) do
     precision = byte_size(fraction)
     n = String.to_integer(fraction)
     n = n * div(1_000_000, trunc(:math.pow(10, precision)))
     case n do
-      0 -> [sec: sec, sec_fractional: {0,0}]
-      _ -> [sec: sec, sec_fractional: {n, precision}]
+      0 -> [sec_fractional: {0,0}]
+      _ -> [sec_fractional: {n, precision}]
+    end
+  end
+
+  def parse_milliseconds(ms) do
+    n = ms |> String.trim("0") |> String.to_integer
+    n = n * 1_000
+    [sec_fractional: Timex.DateTime.Helpers.construct_microseconds(n)]
+  end
+  def parse_microseconds(us) do
+    n_width = byte_size(us)
+    leading = n_width - byte_size(String.trim_leading(us, "0"))
+    trailing = n_width - byte_size(String.trim_trailing(us, "0"))
+    cond do
+      n_width - leading - trailing == 0 ->
+        [sec_fractional: {0,0}]
+      :else ->
+        n = us |> String.trim("0") |> String.to_integer
+        p = n_width - trailing
+        [sec_fractional: {n * trunc(:math.pow(10, 6-p)), p}]
     end
   end
 
