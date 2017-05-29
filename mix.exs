@@ -1,10 +1,10 @@
-defmodule JustpushitApi.Mixfile do
+defmodule Hello.Mixfile do
   use Mix.Project
 
   def project do
-    [app: :justpushit_api,
+    [app: :hello,
      version: "0.0.1",
-     elixir: "1.4.0",
+     elixir: "~> 1.2",
      elixirc_paths: elixirc_paths(Mix.env),
      compilers: [:phoenix, :gettext] ++ Mix.compilers,
      build_embedded: Mix.env == :prod,
@@ -17,9 +17,9 @@ defmodule JustpushitApi.Mixfile do
   #
   # Type `mix help compile.app` for more information.
   def application do
-    [mod: {JustpushitApi, []},
-     applications: [:phoenix, :phoenix_pubsub, :cowboy, :logger, :gettext,
-                    :phoenix_ecto, :postgrex, :faker_elixir_octopus, :extwitter, :timex, :comeonin]]
+    [mod: {Hello, []},
+     applications: [:phoenix, :phoenix_pubsub, :phoenix_html, :cowboy, :logger, :gettext,
+                    :phoenix_ecto, :postgrex]]
   end
 
   # Specifies which paths to compile per environment.
@@ -30,19 +30,14 @@ defmodule JustpushitApi.Mixfile do
   #
   # Type `mix help deps` for examples and options.
   defp deps do
-    [{:phoenix, "~> 1.2.0"},
+    [{:phoenix, "~> 1.2.1"},
      {:phoenix_pubsub, "~> 1.0"},
      {:phoenix_ecto, "~> 3.0"},
      {:postgrex, ">= 0.0.0"},
+     {:phoenix_html, "~> 2.6"},
+     {:phoenix_live_reload, "~> 1.0", only: :dev},
      {:gettext, "~> 0.11"},
-     {:cowboy, "~> 1.0"},
-     {:faker_elixir_octopus, "> 0.0.0"},
-     {:cors_plug, "~> 1.1"},
-     {:oauth, github: "tim/erlang-oauth"},
-     {:timex, "~> 3.0"},
-     {:comeonin, "~> 2.4"},
-     {:ja_serializer, "~> 0.11.1"},
-     {:guardian, "~> 0.13.0"}]
+     {:cowboy, "~> 1.0"}]
   end
 
   # Aliases are shortcuts or tasks specific to the current project.

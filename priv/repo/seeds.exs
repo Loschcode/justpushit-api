@@ -5,23 +5,7 @@
 # Inside the script, you can read and write to any of your
 # repositories directly:
 #
-#     JustpushitApi.Repo.insert!(%JustpushitApi.SomeModel{})
+#     Hello.Repo.insert!(%Hello.SomeModel{})
 #
 # We recommend using the bang functions (`insert!`, `update!`
 # and so on) as they will fail if something goes wrong.
-
-defmodule Fixtures do
-  def channel do
-    JustpushitApi.Repo.insert! %JustpushitApi.Channel{
-      name: FakerElixir.App.name,
-    }
-  end
-
-  def clear do
-    JustpushitApi.Repo.delete_all JustpushitApi.Channel
-  end
-end
-
-#Fixtures.clear
-channels = Stream.repeatedly(fn -> Fixtures.channel end)
-channels |> Enum.take(20)

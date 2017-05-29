@@ -1,32 +1,26 @@
-defmodule JustpushitApi.Router do
-  use JustpushitApi.Web, :router
+defmodule Hello.Router do
+  use Hello.Web, :router
 
-  # Unauthenticated Requests
+  pipeline :browser do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_flash
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+  end
+
   pipeline :api do
-    plug :accepts, ["json", "json-api"]
+    plug :accepts, ["json"]
   end
 
-  # Authenticated Requests
-  pipeline :api_auth do
-    plug :accepts, ["json", "json-api"]
-    plug Guardian.Plug.VerifyHeader
-    plug Guardian.Plug.LoadResource
+  scope "/", Hello do
+    pipe_through :browser # Use the default browser stack
+
+    get "/", PageController, :index
   end
 
-  scope "/", JustpushitApi do
-    pipe_through :api
-
-    # Channels
-    resources "/channels", ChannelController do
-    end
-
-  end
-
-  # not working properly yet
-  scope "/", JustpushitApi do
-    pipe_through :api_auth
-
-    get "/user/current", UserController, :current
-  end
-
+  # Other scopes may use custom stacks.
+  # scope "/api", Hello do
+  #   pipe_through :api
+  # end
 end
