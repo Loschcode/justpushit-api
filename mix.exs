@@ -33,7 +33,7 @@ defmodule JustpushitApi.Mixfile do
     [{:phoenix, "~> 1.2.4"},
      {:phoenix_pubsub, "~> 1.0"},
      {:phoenix_ecto, "~> 3.0"},
-     {:postgrex, "0.13.1"},
+     {:postgrex, "0.13.0"},
      {:gettext, "~> 0.11"},
      {:cowboy, "~> 1.0"}]
   end
