@@ -1,12 +1,12 @@
-defmodule Hello.Web do
+defmodule JustpushitApi.Web do
   @moduledoc """
   A module that keeps using definitions for controllers,
   views and so on.
 
   This can be used in your application as:
 
-      use Hello.Web, :controller
-      use Hello.Web, :view
+      use JustpushitApi.Web, :controller
+      use JustpushitApi.Web, :view
 
   The definitions below will be executed for every view,
   controller, etc, so keep them short and clean, focused
@@ -30,12 +30,12 @@ defmodule Hello.Web do
     quote do
       use Phoenix.Controller
 
-      alias Hello.Repo
+      alias JustpushitApi.Repo
       import Ecto
       import Ecto.Query
 
-      import Hello.Router.Helpers
-      import Hello.Gettext
+      import JustpushitApi.Router.Helpers
+      import JustpushitApi.Gettext
     end
   end
 
@@ -46,12 +46,9 @@ defmodule Hello.Web do
       # Import convenience functions from controllers
       import Phoenix.Controller, only: [get_csrf_token: 0, get_flash: 2, view_module: 1]
 
-      # Use all HTML functionality (forms, tags, etc)
-      use Phoenix.HTML
-
-      import Hello.Router.Helpers
-      import Hello.ErrorHelpers
-      import Hello.Gettext
+      import JustpushitApi.Router.Helpers
+      import JustpushitApi.ErrorHelpers
+      import JustpushitApi.Gettext
     end
   end
 
@@ -65,10 +62,10 @@ defmodule Hello.Web do
     quote do
       use Phoenix.Channel
 
-      alias Hello.Repo
+      alias JustpushitApi.Repo
       import Ecto
       import Ecto.Query
-      import Hello.Gettext
+      import JustpushitApi.Gettext
     end
   end
 

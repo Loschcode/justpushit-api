@@ -1,18 +1,7 @@
-defmodule Hello.ErrorHelpers do
+defmodule JustpushitApi.ErrorHelpers do
   @moduledoc """
   Conveniences for translating and building error messages.
   """
-
-  use Phoenix.HTML
-
-  @doc """
-  Generates tag for inlined form input errors.
-  """
-  def error_tag(form, field) do
-    if error = form.errors[field] do
-      content_tag :span, translate_error(error), class: "help-block"
-    end
-  end
 
   @doc """
   Translates an error message using gettext.
@@ -32,9 +21,9 @@ defmodule Hello.ErrorHelpers do
     #     dgettext "errors", "is invalid"
     #
     if count = opts[:count] do
-      Gettext.dngettext(Hello.Gettext, "errors", msg, msg, count, opts)
+      Gettext.dngettext(JustpushitApi.Gettext, "errors", msg, msg, count, opts)
     else
-      Gettext.dgettext(Hello.Gettext, "errors", msg, opts)
+      Gettext.dgettext(JustpushitApi.Gettext, "errors", msg, opts)
     end
   end
 end

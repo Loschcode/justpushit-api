@@ -8,11 +8,13 @@ use Mix.Config
 # file or create a script for recreating it, since it's
 # kept out of version control and might be hard to recover
 # or recreate for your teammates (or you later on).
+config :justpushit_api, JustpushitApi.Endpoint,
+  secret_key_base: "yyjLBoYJHO8bSUoDrvrSCOzgcZfqvmhLZqtV21HyYMi5vfymJOSdR0mCPRJ/ooP7"
 
-  config :hello, Hello.Endpoint,
-  secret_key_base: System.get_env("SECRET_KEY_BASE")
-
-  # Configure your database
-  config :hello, Hello.Repo,
+# Configure your database
+config :justpushit_api, JustpushitApi.Repo,
   adapter: Ecto.Adapters.Postgres,
-  url: System.get_env("DATABASE_URL")
+  username: "postgres",
+  password: "postgres",
+  database: "justpushit_api_prod",
+  pool_size: 20

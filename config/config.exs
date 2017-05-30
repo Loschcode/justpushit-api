@@ -6,15 +6,15 @@
 use Mix.Config
 
 # General application configuration
-config :hello,
-  ecto_repos: [Hello.Repo]
+config :justpushit_api,
+  ecto_repos: [JustpushitApi.Repo]
 
 # Configures the endpoint
-config :hello, Hello.Endpoint,
+config :justpushit_api, JustpushitApi.Endpoint,
   url: [host: "localhost"],
-  secret_key_base: "tUzZASmgt/aUVALRfMkwigmVIW9Jd/9+QB7zCBrqeEarAfdDIgSE6C5/17SxVrlt",
-  render_errors: [view: Hello.ErrorView, accepts: ~w(html json)],
-  pubsub: [name: Hello.PubSub,
+  secret_key_base: "rN9k5lwarQY4eqDwNiH3XyR88TDnnbn/KJ7R1A2Mk83mbnIifNnNpCv5BJRtool5",
+  render_errors: [view: JustpushitApi.ErrorView, accepts: ~w(json)],
+  pubsub: [name: JustpushitApi.PubSub,
            adapter: Phoenix.PubSub.PG2]
 
 # Configures Elixir's Logger

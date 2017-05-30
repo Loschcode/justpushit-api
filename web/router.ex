@@ -1,26 +1,12 @@
-defmodule Hello.Router do
-  use Hello.Web, :router
-
-  pipeline :browser do
-    plug :accepts, ["html"]
-    plug :fetch_session
-    plug :fetch_flash
-    plug :protect_from_forgery
-    plug :put_secure_browser_headers
-  end
+defmodule JustpushitApi.Router do
+  use JustpushitApi.Web, :router
 
   pipeline :api do
     plug :accepts, ["json"]
   end
 
-  scope "/", Hello do
-    pipe_through :browser # Use the default browser stack
-
-    get "/", PageController, :index
+  scope "/", JustpushitApi do
+    pipe_through :api
   end
-
-  # Other scopes may use custom stacks.
-  # scope "/api", Hello do
-  #   pipe_through :api
-  # end
+  
 end

@@ -2,7 +2,7 @@ use Mix.Config
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
-config :hello, Hello.Endpoint,
+config :justpushit_api, JustpushitApi.Endpoint,
   http: [port: 4001],
   server: false
 
@@ -10,10 +10,10 @@ config :hello, Hello.Endpoint,
 config :logger, level: :warn
 
 # Configure your database
-config :hello, Hello.Repo,
+config :justpushit_api, JustpushitApi.Repo,
   adapter: Ecto.Adapters.Postgres,
   username: "postgres",
   password: "postgres",
-  database: "justpushit_test",
+  database: "justpushit_api_test",
   hostname: "localhost",
   pool: Ecto.Adapters.SQL.Sandbox
