@@ -1,4 +1,4 @@
-defmodule FeedApi do
+defmodule JustpushitApi do
   use Application
 
   # See http://elixir-lang.org/docs/stable/elixir/Application.html
@@ -9,23 +9,23 @@ defmodule FeedApi do
     # Define workers and child supervisors to be supervised
     children = [
       # Start the Ecto repository
-      supervisor(FeedApi.Repo, []),
+      supervisor(JustpushitApi.Repo, []),
       # Start the endpoint when the application starts
-      supervisor(FeedApi.Endpoint, []),
-      # Start your own worker by calling: FeedApi.Worker.start_link(arg1, arg2, arg3)
-      # worker(FeedApi.Worker, [arg1, arg2, arg3]),
+      supervisor(JustpushitApi.Endpoint, []),
+      # Start your own worker by calling: JustpushitApi.Worker.start_link(arg1, arg2, arg3)
+      # worker(JustpushitApi.Worker, [arg1, arg2, arg3]),
     ]
 
     # See http://elixir-lang.org/docs/stable/elixir/Supervisor.html
     # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: FeedApi.Supervisor]
+    opts = [strategy: :one_for_one, name: JustpushitApi.Supervisor]
     Supervisor.start_link(children, opts)
   end
 
   # Tell Phoenix to update the endpoint configuration
   # whenever the application is updated.
   def config_change(changed, _new, removed) do
-    FeedApi.Endpoint.config_change(changed, removed)
+    JustpushitApi.Endpoint.config_change(changed, removed)
     :ok
   end
 end

@@ -1,11 +1,11 @@
-defmodule FeedApi.SessionController do
-  use FeedApi.Web, :controller
+defmodule JustpushitApi.SessionController do
+  use JustpushitApi.Web, :controller
 
   import Ecto.Query, only: [where: 2]
   import Comeonin.Bcrypt
   import Logger
 
-  alias FeedApi.User
+  alias JustpushitApi.User
 
   def create(conn, %{"grant_type" => "password",
     "username" => username,
@@ -32,7 +32,7 @@ defmodule FeedApi.SessionController do
           Logger.warning "User " <> username <> " just failed to login"
           conn
           |> put_status(401)
-          |> render(FeedApi.ErrorView, "401.json") # 401
+          |> render(JustpushitApi.ErrorView, "401.json") # 401
       end
     rescue
       e ->
@@ -40,7 +40,7 @@ defmodule FeedApi.SessionController do
         Logger.error "Unexpected error while attempting to login user " <> username
         conn
         |> put_status(401)
-        |> render(FeedApi.ErrorView, "401.json") # 401
+        |> render(JustpushitApi.ErrorView, "401.json") # 401
     end
   end
 

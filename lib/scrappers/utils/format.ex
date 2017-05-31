@@ -1,4 +1,4 @@
-defmodule FeedApi.Scrappers.Utils.Format do
+defmodule JustpushitApi.Scrappers.Utils.Format do
 
   # format the Tweet by removing the URL and triming it
   def message(string) do

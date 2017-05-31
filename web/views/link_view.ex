@@ -1,12 +1,12 @@
-defmodule FeedApi.LinkView do
-  use FeedApi.Web, :view
+defmodule JustpushitApi.LinkView do
+  use JustpushitApi.Web, :view
 
   def render("index.json", %{links: links}) do
-    %{links: render_many(links, FeedApi.LinkView, "link.json")}
+    %{links: render_many(links, JustpushitApi.LinkView, "link.json")}
   end
 
   def render("show.json", %{link: link}) do
-    %{link: render_one(link, FeedApi.LinkView, "link.json")}
+    %{link: render_one(link, JustpushitApi.LinkView, "link.json")}
   end
 
   def render("link.json", %{link: link}) do

@@ -1,5 +1,5 @@
-defmodule FeedApi.Router do
-  use FeedApi.Web, :router
+defmodule JustpushitApi.Router do
+  use JustpushitApi.Web, :router
 
   # Unauthenticated Requests
   pipeline :api do
@@ -13,7 +13,7 @@ defmodule FeedApi.Router do
     plug Guardian.Plug.LoadResource
   end
 
-  scope "/", FeedApi do
+  scope "/", JustpushitApi do
     pipe_through :api
 
     # Registration
@@ -27,7 +27,7 @@ defmodule FeedApi.Router do
     end
   end
 
-  scope "/", FeedApi do
+  scope "/", JustpushitApi do
     pipe_through :api_auth
 
     get "/user/current", UserController, :current

@@ -1,14 +1,14 @@
-defmodule FeedApi.UserController do
-  use FeedApi.Web, :controller
+defmodule JustpushitApi.UserController do
+  use JustpushitApi.Web, :controller
 
-  alias FeedApi.User
-  plug Guardian.Plug.EnsureAuthenticated, handler: FeedApi.AuthErrorHandler
+  alias JustpushitApi.User
+  plug Guardian.Plug.EnsureAuthenticated, handler: JustpushitApi.AuthErrorHandler
 
   def current(conn, _) do
     user = conn
     |> Guardian.Plug.current_resource
 
     conn
-    |> render(FeedApi.UserView, "show.json", user: user)
+    |> render(JustpushitApi.UserView, "show.json", user: user)
   end
 end

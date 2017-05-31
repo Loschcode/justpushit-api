@@ -1,7 +1,7 @@
-defmodule FeedApi.LinkControllerTest do
-  use FeedApi.ConnCase
+defmodule JustpushitApi.LinkControllerTest do
+  use JustpushitApi.ConnCase
 
-  alias FeedApi.Link
+  alias JustpushitApi.Link
   @valid_attrs %{description: "some content", title: "some content", url: "some content"}
   @invalid_attrs %{}
 

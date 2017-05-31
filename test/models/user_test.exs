@@ -1,7 +1,7 @@
-defmodule FeedApi.UserTest do
-  use FeedApi.ModelCase
+defmodule JustpushitApi.UserTest do
+  use JustpushitApi.ModelCase
 
-  alias FeedApi.User
+  alias JustpushitApi.User
 
   @valid_attrs %{email: "mike@example.com", password: "abcde12345", password_confirmation: "abcde12345"}
   @invalid_attrs %{}

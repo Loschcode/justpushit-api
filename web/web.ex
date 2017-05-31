@@ -1,12 +1,12 @@
-defmodule FeedApi.Web do
+defmodule JustpushitApi.Web do
   @moduledoc """
   A module that keeps using definitions for controllers,
   views and so on.
 
   This can be used in your application as:
 
-      use FeedApi.Web, :controller
-      use FeedApi.Web, :view
+      use JustpushitApi.Web, :controller
+      use JustpushitApi.Web, :view
 
   The definitions below will be executed for every view,
   controller, etc, so keep them short and clean, focused
@@ -30,12 +30,12 @@ defmodule FeedApi.Web do
     quote do
       use Phoenix.Controller
 
-      alias FeedApi.Repo
+      alias JustpushitApi.Repo
       import Ecto
       import Ecto.Query
 
-      import FeedApi.Router.Helpers
-      import FeedApi.Gettext
+      import JustpushitApi.Router.Helpers
+      import JustpushitApi.Gettext
     end
   end
 
@@ -46,9 +46,9 @@ defmodule FeedApi.Web do
       # Import convenience functions from controllers
       import Phoenix.Controller, only: [get_csrf_token: 0, get_flash: 2, view_module: 1]
 
-      import FeedApi.Router.Helpers
-      import FeedApi.ErrorHelpers
-      import FeedApi.Gettext
+      import JustpushitApi.Router.Helpers
+      import JustpushitApi.ErrorHelpers
+      import JustpushitApi.Gettext
     end
   end
 
@@ -62,10 +62,10 @@ defmodule FeedApi.Web do
     quote do
       use Phoenix.Channel
 
-      alias FeedApi.Repo
+      alias JustpushitApi.Repo
       import Ecto
       import Ecto.Query
-      import FeedApi.Gettext
+      import JustpushitApi.Gettext
     end
   end
 

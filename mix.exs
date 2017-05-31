@@ -1,10 +1,10 @@
-defmodule FeedApi.Mixfile do
+defmodule JustpushitApi.Mixfile do
   use Mix.Project
 
   def project do
-    [app: :feed_api,
+    [app: :justpushit_api,
      version: "0.0.1",
-     elixir: "1.3.4",
+     elixir: "1.4.0",
      elixirc_paths: elixirc_paths(Mix.env),
      compilers: [:phoenix, :gettext] ++ Mix.compilers,
      build_embedded: Mix.env == :prod,
@@ -17,7 +17,7 @@ defmodule FeedApi.Mixfile do
   #
   # Type `mix help compile.app` for more information.
   def application do
-    [mod: {FeedApi, []},
+    [mod: {JustpushitApi, []},
      applications: [:phoenix, :phoenix_pubsub, :cowboy, :logger, :gettext,
                     :phoenix_ecto, :postgrex, :faker_elixir_octopus, :extwitter, :timex, :comeonin]]
   end

@@ -1,6 +1,6 @@
-defmodule FeedApi.LinkController do
-  use FeedApi.Web, :controller
-  alias FeedApi.Link
+defmodule JustpushitApi.LinkController do
+  use JustpushitApi.Web, :controller
+  alias JustpushitApi.Link
 
   def index(conn, _params) do
     links = Link |> Link.sort_by_publication() |> Repo.all()
@@ -19,7 +19,7 @@ defmodule FeedApi.LinkController do
       {:error, changeset} ->
         conn
         |> put_status(:unprocessable_entity)
-        |> render(FeedApi.ChangesetView, "error.json", changeset: changeset)
+        |> render(JustpushitApi.ChangesetView, "error.json", changeset: changeset)
     end
   end
 
@@ -38,7 +38,7 @@ defmodule FeedApi.LinkController do
       {:error, changeset} ->
         conn
         |> put_status(:unprocessable_entity)
-        |> render(FeedApi.ChangesetView, "error.json", changeset: changeset)
+        |> render(JustpushitApi.ChangesetView, "error.json", changeset: changeset)
     end
   end
 
@@ -55,7 +55,7 @@ defmodule FeedApi.LinkController do
   def feed(conn, _params) do
     # we feed the database with
     # new links if possible
-    FeedApi.Utils.Feeder.feed!
+    JustpushitApi.Utils.Feeder.feed!
     render(conn, "feed.json")
   end
 

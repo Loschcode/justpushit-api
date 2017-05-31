@@ -5,14 +5,14 @@
 # Inside the script, you can read and write to any of your
 # repositories directly:
 #
-#     FeedApi.Repo.insert!(%FeedApi.SomeModel{})
+#     JustpushitApi.Repo.insert!(%JustpushitApi.SomeModel{})
 #
 # We recommend using the bang functions (`insert!`, `update!`
 # and so on) as they will fail if something goes wrong.
 
 defmodule Fixtures do
   def link do
-    FeedApi.Repo.insert! %FeedApi.Link{
+    JustpushitApi.Repo.insert! %JustpushitApi.Link{
       title: FakerElixir.Name.title,
       description: FakerElixir.Lorem.sentences(3..5),
       url: FakerElixir.Internet.url,
@@ -22,7 +22,7 @@ defmodule Fixtures do
     }
   end
   # def clear do
-  #   FeedApi.Repo.delete_all FeedApi.Link
+  #   JustpushitApi.Repo.delete_all JustpushitApi.Link
   # end
 end
 

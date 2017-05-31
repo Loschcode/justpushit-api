@@ -1,4 +1,4 @@
-defmodule FeedApi.Repo.Migrations.CreateUser do
+defmodule JustpushitApi.Repo.Migrations.CreateUser do
   use Ecto.Migration
 
   def change do

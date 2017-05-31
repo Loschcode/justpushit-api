@@ -1,4 +1,4 @@
-defmodule FeedApi.Repo.Migrations.CreateLink do
+defmodule JustpushitApi.Repo.Migrations.CreateLink do
   use Ecto.Migration
 
   def change do

@@ -1,6 +1,6 @@
-defmodule FeedApi.Scrappers.Twitter do
+defmodule JustpushitApi.Scrappers.Twitter do
 
-  alias FeedApi.Scrappers.Utils.Format
+  alias JustpushitApi.Scrappers.Utils.Format
 
   @tweets 1000
 

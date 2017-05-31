@@ -1,6 +1,6 @@
-defmodule FeedApi.RegistrationController do
-  use FeedApi.Web, :controller
-  alias FeedApi.User
+defmodule JustpushitApi.RegistrationController do
+  use JustpushitApi.Web, :controller
+  alias JustpushitApi.User
 
 
 # curl -XPOST -H "Content-type: application/json" -d '{"data": {"type": "user", "attributes": {"email": "mike@example.com", "password": "abcde12345", "password_confirmation": "abcde12345"}}}' 'http://localhost:4000/api/register'
@@ -17,11 +17,11 @@ defmodule FeedApi.RegistrationController do
       {:ok, user} ->
         conn
         |> put_status(:created)
-        |> render(FeedApi.UserView, "show.json", user: user)
+        |> render(JustpushitApi.UserView, "show.json", user: user)
       {:error, changeset} ->
         conn
         |> put_status(:unprocessable_entity)
-        |> render(FeedApi.ChangesetView, "error.json", changeset: changeset)
+        |> render(JustpushitApi.ChangesetView, "error.json", changeset: changeset)
     end
 
   end

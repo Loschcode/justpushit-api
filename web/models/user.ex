@@ -1,5 +1,5 @@
-defmodule FeedApi.User do
-  use FeedApi.Web, :model
+defmodule JustpushitApi.User do
+  use JustpushitApi.Web, :model
 
   schema "users" do
     field :email, :string

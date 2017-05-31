@@ -1,5 +1,5 @@
-defmodule FeedApi.Link do
-  use FeedApi.Web, :model
+defmodule JustpushitApi.Link do
+  use JustpushitApi.Web, :model
   use Ecto.Schema
 
   schema "links" do

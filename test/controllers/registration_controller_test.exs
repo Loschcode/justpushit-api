@@ -1,7 +1,7 @@
-defmodule FeedApi.RegistrationControllerTest do
-  use FeedApi.ConnCase
+defmodule JustpushitApi.RegistrationControllerTest do
+  use JustpushitApi.ConnCase
 
-  alias FeedApi.User
+  alias JustpushitApi.User
 
   @valid_attrs %{
     email: "mike@example.com",

@@ -1,5 +1,5 @@
-defmodule FeedApi.ErrorView do
-  use FeedApi.Web, :view
+defmodule JustpushitApi.ErrorView do
+  use JustpushitApi.Web, :view
   use JaSerializer.PhoenixView # Or use in web/web.ex
 
   def render("401.json", _assigns) do

@@ -1,4 +1,4 @@
-defmodule FeedApi.Utils.Feeder do
+defmodule JustpushitApi.Utils.Feeder do
 
   @doc """
   We try to get the tweets from the timeline of the user
@@ -7,13 +7,13 @@ defmodule FeedApi.Utils.Feeder do
   def feed!, do: from_twitter!
 
   def from_twitter! do
-    FeedApi.Scrappers.Twitter.dispatch! |> fetch!
+    JustpushitApi.Scrappers.Twitter.dispatch! |> fetch!
   end
 
   defp fetch!(data) do
     for entry <- data do
       if entry |> valid? do
-        change_entry!(FeedApi.Repo.get_by(FeedApi.Link, title: entry.message), entry)
+        change_entry!(JustpushitApi.Repo.get_by(JustpushitApi.Link, title: entry.message), entry)
       end
     end
   end
@@ -25,7 +25,7 @@ defmodule FeedApi.Utils.Feeder do
 
   defp change_entry!(nil, entry) do
     # let's insert this entry
-    FeedApi.Repo.insert! %FeedApi.Link{
+    JustpushitApi.Repo.insert! %JustpushitApi.Link{
       title: entry.message,
       description: nil,
       url: entry.link,
@@ -36,7 +36,7 @@ defmodule FeedApi.Utils.Feeder do
 
   defp change_entry!(link, entry) do
     # let's update this entry
-    FeedApi.Repo.update! FeedApi.Link.changeset(link, %{
+    JustpushitApi.Repo.update! JustpushitApi.Link.changeset(link, %{
       title: entry.message,
       description: nil,
       url: entry.link,

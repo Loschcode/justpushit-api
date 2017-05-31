@@ -1,8 +1,8 @@
-defmodule FeedApi.GuardianSerializer do
+defmodule JustpushitApi.GuardianSerializer do
   @behaviour Guardian.Serializer
 
-  alias FeedApi.Repo
-  alias FeedApi.User
+  alias JustpushitApi.Repo
+  alias JustpushitApi.User
 
   def for_token(user = %User{}), do: { :ok, "User:#{user.id}" }
   def for_token(_), do: { :error, "Unknown resource type" }
