@@ -1,4 +1,4 @@
-defmodule JustpushitApi.ChannelCase do
+defmodule FeedApi.ChannelCase do
   @moduledoc """
   This module defines the test case to be used by
   channel tests.
@@ -20,22 +20,22 @@ defmodule JustpushitApi.ChannelCase do
       # Import conveniences for testing with channels
       use Phoenix.ChannelTest
 
-      alias JustpushitApi.Repo
+      alias FeedApi.Repo
       import Ecto
       import Ecto.Changeset
       import Ecto.Query
 
 
       # The default endpoint for testing
-      @endpoint JustpushitApi.Endpoint
+      @endpoint FeedApi.Endpoint
     end
   end
 
   setup tags do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(JustpushitApi.Repo)
+    :ok = Ecto.Adapters.SQL.Sandbox.checkout(FeedApi.Repo)
 
     unless tags[:async] do
-      Ecto.Adapters.SQL.Sandbox.mode(JustpushitApi.Repo, {:shared, self()})
+      Ecto.Adapters.SQL.Sandbox.mode(FeedApi.Repo, {:shared, self()})
     end
 
     :ok

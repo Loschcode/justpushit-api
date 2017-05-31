@@ -6,13 +6,21 @@ use Mix.Config
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we use it
 # with brunch.io to recompile .js and .css sources.
-config :justpushit_api, JustpushitApi.Endpoint,
+config :feed_api, FeedApi.Endpoint,
   http: [port: 4000],
   debug_errors: true,
   code_reloader: true,
   check_origin: false,
   watchers: []
 
+# Configure your database
+config :feed_api, FeedApi.Repo,
+  adapter: Ecto.Adapters.Postgres,
+  username: "feed",
+  password: "feeding",
+  database: "feed",
+  hostname: "localhost",
+  pool: Ecto.Adapters.SQL.Sandbox
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :console, format: "[$level] $message\n"
@@ -21,12 +29,10 @@ config :logger, :console, format: "[$level] $message\n"
 # in production as building large stacktraces may be expensive.
 config :phoenix, :stacktrace_depth, 20
 
-# Configure your database
-config :justpushit_api, JustpushitApi.Repo,
-  adapter: Ecto.Adapters.Postgres,
-  username: "postgres",
-  password: "postgres",
-  database: "justpushit_dev",
-  hostname: "localhost",
-  port: 33470,
-  pool_size: 10
+# Configures Twitter scrapper
+config :extwitter, :oauth, [
+  consumer_key: "XpJxYdMfgLjyFSUhpoCsJwrfV",
+  consumer_secret: "6vaXnm815waV1snR5y1JQR9tfN4SYGqIxPBfrVWPYbEfiuJaw2",
+  access_token: "736601629-1kPVfiEkWpsIdK8TZMtANCBkntGofsZuQtA3cLX5",
+  access_token_secret: "jKvZIJ6KjWHKf1iq2oySP3uMcl1LknzSSq2cLmd1yoQq9"
+]

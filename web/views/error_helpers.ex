@@ -1,4 +1,4 @@
-defmodule JustpushitApi.ErrorHelpers do
+defmodule FeedApi.ErrorHelpers do
   @moduledoc """
   Conveniences for translating and building error messages.
   """
@@ -21,9 +21,9 @@ defmodule JustpushitApi.ErrorHelpers do
     #     dgettext "errors", "is invalid"
     #
     if count = opts[:count] do
-      Gettext.dngettext(JustpushitApi.Gettext, "errors", msg, msg, count, opts)
+      Gettext.dngettext(FeedApi.Gettext, "errors", msg, msg, count, opts)
     else
-      Gettext.dgettext(JustpushitApi.Gettext, "errors", msg, opts)
+      Gettext.dgettext(FeedApi.Gettext, "errors", msg, opts)
     end
   end
 end
