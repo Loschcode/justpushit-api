@@ -16,9 +16,9 @@ config :justpushit_api, JustpushitApi.Endpoint,
 # Configure your database
 config :justpushit_api, JustpushitApi.Repo,
   adapter: Ecto.Adapters.Postgres,
-  username: "feed",
-  password: "feeding",
-  database: "feed",
+  username: "Loschcode",
+  password: "",
+  database: "justpushit_api",
   hostname: "localhost",
   pool: Ecto.Adapters.SQL.Sandbox
 
@@ -28,11 +28,3 @@ config :logger, :console, format: "[$level] $message\n"
 # Set a higher stacktrace during development. Avoid configuring such
 # in production as building large stacktraces may be expensive.
 config :phoenix, :stacktrace_depth, 20
-
-# Configures Twitter scrapper
-config :extwitter, :oauth, [
-  consumer_key: "XpJxYdMfgLjyFSUhpoCsJwrfV",
-  consumer_secret: "6vaXnm815waV1snR5y1JQR9tfN4SYGqIxPBfrVWPYbEfiuJaw2",
-  access_token: "736601629-1kPVfiEkWpsIdK8TZMtANCBkntGofsZuQtA3cLX5",
-  access_token_secret: "jKvZIJ6KjWHKf1iq2oySP3uMcl1LknzSSq2cLmd1yoQq9"
-]

@@ -15,11 +15,3 @@ config :justpushit_api, JustpushitApi.Endpoint,
 config :justpushit_api, JustpushitApi.Repo,
   adapter: Ecto.Adapters.Postgres,
   url: System.get_env("DATABASE_URL")
-
-# Configures Twitter scrapper
-config :extwitter, :oauth, [
-  consumer_key: System.get_env("TWITTER_CONSUMER_KEY"),
-  consumer_secret: System.get_env("TWITTER_CONSUMER_SECRET"),
-  access_token: System.get_env("TWITTER_ACCESS_TOKEN"),
-  access_token_secret: System.get_env("TWITTER_ACCESS_TOKEN_SECRET")
-]

@@ -39,7 +39,6 @@ defmodule JustpushitApi.Mixfile do
      {:faker_elixir_octopus, "> 0.0.0"},
      {:cors_plug, "~> 1.1"},
      {:oauth, github: "tim/erlang-oauth"},
-     {:extwitter, "0.7.2"},
      {:timex, "~> 3.0"},
      {:comeonin, "~> 2.4"},
      {:ja_serializer, "~> 0.11.1"},
