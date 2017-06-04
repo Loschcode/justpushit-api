@@ -3,7 +3,7 @@ defmodule JustpushitApi.Channel do
 
   schema "channels" do
     field :name, :string
-
+    field :slug, :string
     timestamps()
   end
 
@@ -14,6 +14,14 @@ defmodule JustpushitApi.Channel do
     struct
     |> cast(params, [:name])
     |> validate_required([:name])
+    |> generate_slug(params[:name])
+  end
+
+  # will generate a slug from the name
+  # before insert / update the database
+  def generate_slug(struct, name) do
+    slug = Slugger.slugify_downcase(name)
+    %{struct | slug: slug}
   end
 
 end

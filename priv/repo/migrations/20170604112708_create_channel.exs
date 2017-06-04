@@ -4,7 +4,7 @@ defmodule JustpushitApi.Repo.Migrations.CreateChannel do
   def change do
     create table(:channels) do
       add :name, :string
-
+      add :slug, :string
       timestamps()
     end
 

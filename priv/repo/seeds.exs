@@ -12,7 +12,7 @@
 
 defmodule Fixtures do
   def channel do
-    JustpushitApi.Repo.insert! %JustpushitApi.Channel{
+    JustpushitApi.Repo.insert %JustpushitApi.Channel{
       name: FakerElixir.App.name,
     }
   end
@@ -22,6 +22,6 @@ defmodule Fixtures do
   end
 end
 
-#Fixtures.clear
+# Fixtures.clear
 channels = Stream.repeatedly(fn -> Fixtures.channel end)
 channels |> Enum.take(20)

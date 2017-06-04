@@ -19,7 +19,7 @@ defmodule JustpushitApi.Mixfile do
   def application do
     [mod: {JustpushitApi, []},
      applications: [:phoenix, :phoenix_pubsub, :cowboy, :logger, :gettext,
-                    :phoenix_ecto, :postgrex, :faker_elixir_octopus, :timex, :comeonin]]
+                    :phoenix_ecto, :postgrex, :slugger, :faker_elixir_octopus, :timex, :comeonin]]
   end
 
   # Specifies which paths to compile per environment.
@@ -30,19 +30,22 @@ defmodule JustpushitApi.Mixfile do
   #
   # Type `mix help deps` for examples and options.
   defp deps do
-    [{:phoenix, "~> 1.2.0"},
-     {:phoenix_pubsub, "~> 1.0"},
-     {:phoenix_ecto, "~> 3.0"},
-     {:postgrex, ">= 0.0.0"},
-     {:gettext, "~> 0.11"},
-     {:cowboy, "~> 1.0"},
-     {:faker_elixir_octopus, "> 0.0.0"},
-     {:cors_plug, "~> 1.1"},
-     {:oauth, github: "tim/erlang-oauth"},
-     {:timex, "~> 3.0"},
-     {:comeonin, "~> 2.4"},
-     {:ja_serializer, "~> 0.11.1"},
-     {:guardian, "~> 0.13.0"}]
+    [
+      {:phoenix, "~> 1.2.0"},
+      {:phoenix_pubsub, "~> 1.0"},
+      {:phoenix_ecto, "~> 3.0"},
+      {:postgrex, ">= 0.0.0"},
+      {:gettext, "~> 0.11"},
+      {:cowboy, "~> 1.0"},
+      {:faker_elixir_octopus, "> 0.0.0"},
+      {:cors_plug, "~> 1.1"},
+      {:oauth, github: "tim/erlang-oauth"},
+      {:timex, "~> 3.0"},
+      {:comeonin, "~> 2.4"},
+      {:ja_serializer, "~> 0.11.1"},
+      {:guardian, "~> 0.13.0"},
+      {:slugger, "~> 0.1.0"}
+    ]
   end
 
   # Aliases are shortcuts or tasks specific to the current project.
