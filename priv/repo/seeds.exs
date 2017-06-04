@@ -11,21 +11,17 @@
 # and so on) as they will fail if something goes wrong.
 
 defmodule Fixtures do
-  def link do
-    JustpushitApi.Repo.insert! %JustpushitApi.Link{
-      title: FakerElixir.Name.title,
-      description: FakerElixir.Lorem.sentences(3..5),
-      url: FakerElixir.Internet.url,
-      source: "string",
-      published_at: FakerElixir.Date.backward(1..50) |> Ecto.DateTime.cast |> elem(1)
-      # {:ok, published_at} = FakerElixir.Date.backward(1..50) |> Ecto.DateTime.cast
+  def channel do
+    JustpushitApi.Repo.insert! %JustpushitApi.Channel{
+      name: FakerElixir.App.name,
     }
   end
-  # def clear do
-  #   JustpushitApi.Repo.delete_all JustpushitApi.Link
-  # end
+
+  def clear do
+    JustpushitApi.Repo.delete_all JustpushitApi.Channel
+  end
 end
 
 #Fixtures.clear
-posts = Stream.repeatedly(fn -> Fixtures.link end)
-posts |> Enum.take(20)
+channels = Stream.repeatedly(fn -> Fixtures.channel end)
+channels |> Enum.take(20)
