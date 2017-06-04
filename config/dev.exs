@@ -16,10 +16,11 @@ config :justpushit_api, JustpushitApi.Endpoint,
 # Configure your database
 config :justpushit_api, JustpushitApi.Repo,
   adapter: Ecto.Adapters.Postgres,
-  username: "Loschcode",
-  password: "",
-  database: "justpushit_api",
-  hostname: "localhost",
+  username: "postgres",
+  password: "postgres",
+  database: "justpushit_dev",
+  port: 33470,
+  hostname: "local.dev",
   pool: Ecto.Adapters.SQL.Sandbox
 
 # Do not include metadata nor timestamps in development logs

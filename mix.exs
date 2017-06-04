@@ -19,7 +19,7 @@ defmodule JustpushitApi.Mixfile do
   def application do
     [mod: {JustpushitApi, []},
      applications: [:phoenix, :phoenix_pubsub, :cowboy, :logger, :gettext,
-                    :phoenix_ecto, :postgrex, :faker_elixir_octopus, :extwitter, :timex, :comeonin]]
+                    :phoenix_ecto, :postgrex, :faker_elixir_octopus, :timex, :comeonin]]
   end
 
   # Specifies which paths to compile per environment.

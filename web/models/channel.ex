@@ -15,4 +15,5 @@ defmodule JustpushitApi.Channel do
     |> cast(params, [:name])
     |> validate_required([:name])
   end
+
 end

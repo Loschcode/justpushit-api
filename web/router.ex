@@ -21,10 +21,9 @@ defmodule JustpushitApi.Router do
     # Login
     post "token", SessionController, :create, as: :login
 
-    # Links
-    get "/links/feed", LinkController, :feed
-    resources "/links", LinkController do
+    resources "/channels", ChannelController do
     end
+
   end
 
   scope "/", JustpushitApi do
