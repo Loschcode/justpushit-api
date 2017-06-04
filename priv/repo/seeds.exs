@@ -12,9 +12,10 @@
 
 defmodule Fixtures do
   def channel do
-    JustpushitApi.Repo.insert %JustpushitApi.Channel{
-      name: FakerElixir.App.name,
+    channel_params = %{
+      name: FakerElixir.App.name
     }
+    JustpushitApi.Repo.insert JustpushitApi.Channel.changeset(%JustpushitApi.Channel{}, channel_params)
   end
 
   def clear do

@@ -21,7 +21,7 @@ defmodule JustpushitApi.Channel do
   # before insert / update the database
   def generate_slug(struct, name) do
     slug = Slugger.slugify_downcase(name)
-    %{struct | slug: slug}
+    put_change(struct, :slug, slug)
   end
 
 end
